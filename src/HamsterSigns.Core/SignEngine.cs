@@ -28,7 +28,7 @@ public static class SignValidator
             result.Add(new("SIZE", "Sign dimensions must be finite positive millimetre values.", true));
         foreach (var e in doc.Elements)
         {
-            double[] values = [e.X, e.Y, e.X2, e.Y2, e.Width, e.Height, e.FontSizeMm, e.StrokeWidthMm];
+            double[] values = [e.X, e.Y, e.X2, e.Y2, e.Control1X, e.Control1Y, e.Control2X, e.Control2Y, e.Width, e.Height, e.FontSizeMm, e.StrokeWidthMm];
             if (values.Any(v => !double.IsFinite(v)))
                 result.Add(new("COORD", $"Element {e.Id} contains a non-finite value.", true));
             if (e.Kind == ElementKind.Text && (e.FontSizeMm <= 0 || string.IsNullOrWhiteSpace(e.Text)))
@@ -67,6 +67,9 @@ public static class SvgExporter
                     break;
                 case ElementKind.Line:
                     b.AppendLine($"<line x1=\"{F(e.X)}\" y1=\"{F(e.Y)}\" x2=\"{F(e.X2)}\" y2=\"{F(e.Y2)}\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
+                    break;
+                case ElementKind.CubicBezier:
+                    b.AppendLine($"<path d=\"M {F(e.X)} {F(e.Y)} C {F(e.Control1X)} {F(e.Control1Y)}, {F(e.Control2X)} {F(e.Control2Y)}, {F(e.X2)} {F(e.Y2)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
                     break;
             }
         }
