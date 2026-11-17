@@ -178,7 +178,7 @@ var vectorDoc=new SignDocument { Elements=[new SignElement {
     FontRole=SignFontRole.TransportHeavy,TextColor="#000000"
 }]};
 var vectorSvg=SvgExporter.Export(vectorDoc,_=>"M 40 50 L 70 50 L 70 80 Z");
-Check(vectorSvg.Contains("fill-rule=\\"nonzero\\""),"Outline export emits a vector filled path");
+Check(vectorSvg.Contains("fill-rule=\"nonzero\""),"Outline export emits a vector filled path");
 Check(vectorSvg.Contains("M 40 50 L 70 50 L 70 80 Z"),"Outline export embeds provider path");
 Check(!vectorSvg.Contains("<text"),"Outlined text is not dependent on recipient fonts");
 Check(SvgExporter.Export(vectorDoc).Contains("<text"),"SVG falls back to readable text when fonts are unavailable");
