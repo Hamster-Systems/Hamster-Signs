@@ -28,6 +28,8 @@ public sealed class EditorWindow : Window
     private double baseScale=1;
     private Point dragStart;
     private double originX, originY, originX2, originY2;
+    private double originC1X, originC1Y, originC2X, originC2Y;
+    private int activeHandle;
     private bool dragging, panning;
     private const double MinZoom=0.2, MaxZoom=8;
 
@@ -46,6 +48,7 @@ public sealed class EditorWindow : Window
         tools.Children.Add(Button("Add text", () => Add(new() { Kind=ElementKind.Text, X=300, Y=250, Text="Destination", FontSizeMm=135 })));
         tools.Children.Add(Button("Add panel", () => Add(new() { Kind=ElementKind.Panel, X=300, Y=350, Width=400, Height=175, Fill="#174c9a" })));
         tools.Children.Add(Button("Add line", () => Add(new() { Kind=ElementKind.Line, X=200, Y=500, X2=900, Y2=500, StrokeWidthMm=55 })));
+        tools.Children.Add(Button("Add curved road", () => Add(new() { Kind=ElementKind.CubicBezier, X=300, Y=500, Control1X=450, Control1Y=350, Control2X=700, Control2Y=750, X2=1000, Y2=570, StrokeWidthMm=65 })));
         tools.Children.Add(Button("Add circle / roundabout ring", () => Add(new() { Kind=ElementKind.Ellipse, X=300, Y=500, Width=520, Height=520, StrokeWidthMm=60 })));
         tools.Children.Add(Button("Delete selected", Delete));
         tools.Children.Add(textEditor);
@@ -181,6 +184,22 @@ public sealed class EditorWindow : Window
         selectedId=element.Id; textEditor.Text=element.Kind==ElementKind.Text ? element.Text : "";
         dragStart=e.GetPosition(canvas);
         originX=element.X; originY=element.Y; originX2=element.X2; originY2=element.Y2;
+        originC1X=element.Control1X; originC1Y=element.Control1Y; originC2X=element.Control2X; originC2Y=element.Control2Y;
+        activeHandle=0;
+        editor.Begin(); dragging=true;
+        e.Pointer.Capture(canvas);
+        e.Handled=true;
+        Draw();
+    }
+    private void StartHandle(SignElement element, int handle, PointerPressedEventArgs e)
+    {
+        if(!e.GetCurrentPoint(canvas).Properties.IsLeftButtonPressed) return;
+        selectedId=element.Id;
+        dragStart=e.GetPosition(canvas);
+        originX=element.X; originY=element.Y; originX2=element.X2; originY2=element.Y2;
+        originC1X=element.Control1X; originC1Y=element.Control1Y;
+        originC2X=element.Control2X; originC2Y=element.Control2Y;
+        activeHandle=handle;
         editor.Begin(); dragging=true;
         e.Pointer.Capture(canvas);
         e.Handled=true;
@@ -198,12 +217,33 @@ public sealed class EditorWindow : Window
         var element=Selected;
         if(element is null) return;
         double dx=(point.X-dragStart.X)/Scale, dy=(point.Y-dragStart.Y)/Scale;
-        element.X=SignEditorSession.Snap(originX+dx,Grid);
-        element.Y=SignEditorSession.Snap(originY+dy,Grid);
-        if(element.Kind==ElementKind.Line)
+        if(element.Kind==ElementKind.CubicBezier && activeHandle!=0)
         {
-            element.X2=originX2+(element.X-originX);
-            element.Y2=originY2+(element.Y-originY);
+            var x=SignEditorSession.Snap(dx+(activeHandle switch { 1=>originX, 2=>originC1X, 3=>originC2X, _=>originX2 }),Grid);
+            var y=SignEditorSession.Snap(dy+(activeHandle switch { 1=>originY, 2=>originC1Y, 3=>originC2Y, _=>originY2 }),Grid);
+            switch(activeHandle)
+            {
+                case 1: element.X=x; element.Y=y; break;
+                case 2: element.Control1X=x; element.Control1Y=y; break;
+                case 3: element.Control2X=x; element.Control2Y=y; break;
+                case 4: element.X2=x; element.Y2=y; break;
+            }
+        }
+        else
+        {
+            element.X=SignEditorSession.Snap(originX+dx,Grid);
+            element.Y=SignEditorSession.Snap(originY+dy,Grid);
+            var moveX=element.X-originX; var moveY=element.Y-originY;
+            if(element.Kind is ElementKind.Line or ElementKind.CubicBezier)
+            {
+                element.X2=originX2+moveX;
+                element.Y2=originY2+moveY;
+            }
+            if(element.Kind==ElementKind.CubicBezier)
+            {
+                element.Control1X=originC1X+moveX; element.Control1Y=originC1Y+moveY;
+                element.Control2X=originC2X+moveX; element.Control2Y=originC2Y+moveY;
+            }
         }
         Draw();
     }
@@ -262,6 +302,36 @@ public sealed class EditorWindow : Window
         }
         catch(Exception ex) { status.Text=$"Export failed: {ex.Message}"; }
     }
+    private void DrawCurveHandles(SignElement element, double scale)
+    {
+        void Guide(double ax,double ay,double bx,double by)
+        {
+            var guide=new Line {
+                StartPoint=new Point(offsetX+ax*scale,offsetY+ay*scale),
+                EndPoint=new Point(offsetX+bx*scale,offsetY+by*scale),
+                Stroke=Brushes.Orange, StrokeThickness=1, IsHitTestVisible=false
+            };
+            canvas.Children.Add(guide);
+        }
+        Guide(element.X,element.Y,element.Control1X,element.Control1Y);
+        Guide(element.X2,element.Y2,element.Control2X,element.Control2Y);
+        void Handle(int index,double x,double y)
+        {
+            var point=new Ellipse {
+                Width=13,Height=13,
+                Fill=index is 2 or 3 ? Brushes.Orange : Brushes.White,
+                Stroke=Brushes.DarkOrange,StrokeThickness=2
+            };
+            Canvas.SetLeft(point,offsetX+x*scale-6.5);
+            Canvas.SetTop(point,offsetY+y*scale-6.5);
+            point.PointerPressed+=(_,e)=>StartHandle(element,index,e);
+            canvas.Children.Add(point);
+        }
+        Handle(1,element.X,element.Y);
+        Handle(2,element.Control1X,element.Control1Y);
+        Handle(3,element.Control2X,element.Control2Y);
+        Handle(4,element.X2,element.Y2);
+    }
     private void Draw()
     {
         canvas.Children.Clear();
@@ -277,12 +347,25 @@ public sealed class EditorWindow : Window
                 ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
                 ElementKind.Ellipse => new Ellipse { Width=element.Width*s, Height=element.Height*s, Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s, Fill=Brush(element.Fill) },
                 ElementKind.Line => new Line { StartPoint=new Point(0,0), EndPoint=new Point((element.X2-element.X)*s,(element.Y2-element.Y)*s), Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,2) },
+                ElementKind.CubicBezier => new Avalonia.Controls.Shapes.Path {
+                    Data=Geometry.Parse(string.Format(CultureInfo.InvariantCulture,
+                        "M {0} {1} C {2} {3} {4} {5} {6} {7}",
+                        offsetX+element.X*s,offsetY+element.Y*s,
+                        offsetX+element.Control1X*s,offsetY+element.Control1Y*s,
+                        offsetX+element.Control2X*s,offsetY+element.Control2Y*s,
+                        offsetX+element.X2*s,offsetY+element.Y2*s)),
+                    Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,4),
+                    Fill=Brushes.Transparent
+                },
                 _=>null
             };
             if(visual is null) continue;
-            Canvas.SetLeft(visual,offsetX+element.X*s); Canvas.SetTop(visual,offsetY+element.Y*s);
+            Canvas.SetLeft(visual,element.Kind==ElementKind.CubicBezier ? 0 : offsetX+element.X*s);
+            Canvas.SetTop(visual,element.Kind==ElementKind.CubicBezier ? 0 : offsetY+element.Y*s);
             visual.PointerPressed += (_,e)=>StartDrag(element,e);
             canvas.Children.Add(visual);
+            if(selectedId==element.Id && element.Kind==ElementKind.CubicBezier)
+                DrawCurveHandles(element,s);
             if(selectedId==element.Id && element.Kind is ElementKind.Panel or ElementKind.Ellipse)
             {
                 var outline=new Rectangle { Width=element.Width*s+12, Height=element.Height*s+12, Stroke=Brushes.Orange, StrokeThickness=2, IsHitTestVisible=false };
