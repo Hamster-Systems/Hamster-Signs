@@ -27,19 +27,28 @@ public sealed class DirectionSignSpecification
 public static class DirectionSignLayout
 {
     private static double Round5(double n) => Math.Ceiling(n / 5) * 5;
-    private static double Width(string text,double xHeight)
+    private static double Width(string text,double xHeight) =>
+        TransportLetterMetrics.Measure(text,xHeight).WidthMm;
+
+    public static IReadOnlyList<string> TypographyWarnings(DirectionSignSpecification? design)
     {
-        double sum=0;
-        foreach(var c in text)
-            sum+=c switch
+        if(design?.Destinations is null || !double.IsFinite(design.XHeightMm) || design.XHeightMm<=0)
+            return ["Typography cannot be assessed until a valid sign specification is supplied."];
+        var warnings=new List<string>();
+        foreach(var row in design.Destinations)
+        {
+            if(row is null) continue;
+            foreach(var text in new[] {row.Place,row.Route})
             {
-                ' ' => 0.34,
-                'i' or 'l' or 'I' or '1' or '!' => 0.34,
-                'm' or 'w' or 'M' or 'W' => 0.95,
-                _ when char.IsUpper(c) => 0.73,
-                _ => 0.59
-            };
-        return sum*xHeight;
+                if(string.IsNullOrEmpty(text)) continue;
+                var result=TransportLetterMetrics.Measure(text,design.XHeightMm);
+                if(!result.FullySpecified)
+                    warnings.Add($"Unverified Transport tile widths for {string.Concat(result.UnverifiedCharacters)} in '{text}'.");
+            }
+        }
+        warnings.Add("Rendered glyph outlines use a system font, not a verified Transport typeface.");
+        warnings.Add("Sign borders, symbols, route patches and element spacing still require standards verification.");
+        return warnings.Distinct().ToArray();
     }
 
     public static IReadOnlyList<string> Validate(DirectionSignSpecification? design)
@@ -86,19 +95,19 @@ public static class DirectionSignLayout
         if(errors.Count>0) throw new ArgumentException(string.Join("; ",errors),nameof(spec));
 
         var x=spec.XHeightMm;
-        var sw=x/4;
+        var sw=TransportLetterMetrics.StrokeWidth(x);
         var margin=Round5(1.75*x);
         var arrowW=Round5(1.5*x);
         var routePad=Round5(.35*x);
-        var rowHeight=Round5(2.2*x);
-        var rowGap=Round5(.38*x);
+        var rowHeight=TransportLetterMetrics.TileHeight(x);
+        var rowGap=Round5(2*sw);
         var width=0d;
         foreach(var row in spec.Destinations)
         {
             var placeWidth=Width(row.Place,x);
             var routeWidth=string.IsNullOrWhiteSpace(row.Route) ? 0 : Width(row.Route,x)+routePad*2;
-            var needed=margin*2+arrowW+Round5(.75*x)+placeWidth+
-                (routeWidth>0 ? Round5(.65*x)+routeWidth : 0);
+            var needed=margin*2+arrowW+Round5(2.5*sw)+placeWidth+
+                (routeWidth>0 ? Round5(2.5*sw)+routeWidth : 0);
             width=Math.Max(width,needed);
         }
         width=Round5(Math.Max(720,width));
@@ -123,7 +132,7 @@ public static class DirectionSignLayout
             Fill="none",Stroke=foreground,StrokeWidthMm=sw*.35
         });
 
-        var textX=margin+arrowW+Round5(.75*x);
+        var textX=margin+arrowW+Round5(2.5*sw);
         for(var i=0;i<spec.Destinations.Count;i++)
         {
             var row=spec.Destinations[i];
@@ -158,6 +167,8 @@ public static class DirectionSignLayout
                 var routeW=Width(row.Route,x)+routePad*2;
                 var routeX=width-margin-routeW;
                 var (fill,panelText)=PanelColors(row.RouteStyle,spec.Background);
+                if(row.RouteStyle==RoutePanel.None && spec.Background==SignColour.PrimaryGreen)
+                    panelText="#f7df32";
                 // For route values without a patch, draw the legend directly on the sign.
                 if(row.RouteStyle!=RoutePanel.None)
                     doc.Elements.Add(new SignElement {
