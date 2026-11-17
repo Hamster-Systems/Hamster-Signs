@@ -136,4 +136,31 @@ Check(DirectionSignLayout.Validate(new DirectionSignSpecification { XHeightMm=0,
 Check(DirectionSignLayout.Build(new DirectionSignSpecification {
     Destinations=[new DirectionDestination {Place="A"}]
 }).WidthMm%5==0,"Generated dimensions rounded to five-millimetre increments");
+// v0.7 — official TM1 capital-letter tiles and honest fallback auditing.
+Check(TransportLetterMetrics.StrokeWidth(100)==25,"x-height converts to sw at one quarter");
+Check(TransportLetterMetrics.TileHeight(100)==200,"tile height equals twice x-height");
+Check(TransportLetterMetrics.WordSpace(100)==62.5,"Chapter 7 word spacing equals 2.5 sw");
+var mediumA=TransportLetterMetrics.Measure("A",100);
+Check(mediumA.FullySpecified && Math.Abs(mediumA.WidthMm-136)<0.00001,"TM1 A tile width 5.44 sw");
+Check(Math.Abs(TransportLetterMetrics.Measure("WT",100).WidthMm-298)<0.00001,"TM1 contextual W width before T");
+Check(Math.Abs(TransportLetterMetrics.Measure("T",100).WidthMm-109)<0.00001,"TM1 standard T width");
+Check(!TransportLetterMetrics.Measure("Kendal",100).FullySpecified,"Lowercase letters explicitly unverified");
+Check(TransportLetterMetrics.Measure("A B",100).WidthMm==
+    TransportLetterMetrics.Measure("AB",100).WidthMm+62.5,"Word gap accounted for in tiles");
+Check(DirectionSignLayout.TypographyWarnings(specification).Any(w=>w.Contains("Unverified Transport")),
+    "Typography audit lists unverified characters");
+var capitalsOnly=new DirectionSignSpecification {
+    XHeightMm=100,
+    Destinations=[new DirectionDestination {Place="NORTH",Route="",Arrow=DirectionArrow.Ahead}]
+};
+var capitalWarnings=DirectionSignLayout.TypographyWarnings(capitalsOnly);
+Check(!capitalWarnings.Any(w=>w.StartsWith("Unverified Transport")),"Verified uppercase tiles do not raise fallback warning");
+Check(capitalWarnings.Any(w=>w.Contains("system font")),"Font outlines remain flagged as unverified");
+var twoWordWidth=DirectionSignLayout.Build(new DirectionSignSpecification {
+    XHeightMm=100, Destinations=[new DirectionDestination {Place="NORTH SOUTH"}]
+}).WidthMm;
+var oneWordWidth=DirectionSignLayout.Build(new DirectionSignSpecification {
+    XHeightMm=100, Destinations=[new DirectionDestination {Place="NORTHSOUTH"}]
+}).WidthMm;
+Check(twoWordWidth>oneWordWidth,"Sign auto sizing respects the prescribed word gap");
 Console.WriteLine("All tests passed.");
