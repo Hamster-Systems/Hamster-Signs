@@ -11,6 +11,8 @@ public sealed class JunctionArm
     /// <summary>Clockwise degrees, zero pointing upward on the drawing.</summary>
     public double AngleDegrees { get; set; }
     public double LengthMm { get; set; } = 400;
+    public double? EndOffsetX { get; set; }
+    public double? EndOffsetY { get; set; }
     public bool Smooth { get; set; }
     public bool ShowArrow { get; set; }
     // Bend positions are offsets from the junction centre, in millimetres.
@@ -125,6 +127,8 @@ public static class JunctionGeometry
 
     public static (double X, double Y) Endpoint(SignElement element, JunctionArm arm)
     {
+        if(arm.EndOffsetX.HasValue && arm.EndOffsetY.HasValue)
+            return (element.X+arm.EndOffsetX.Value, element.Y+arm.EndOffsetY.Value);
         var radius=element.Junction is null ? 0 : RadiusAtAngle(element.Junction,arm.AngleDegrees);
         var angle=arm.AngleDegrees*Math.PI/180;
         var d=radius+arm.LengthMm;
@@ -133,6 +137,12 @@ public static class JunctionGeometry
 
     public static void MoveEndpoint(SignElement element, JunctionArm arm, double x, double y)
     {
+        if(arm.EndOffsetX.HasValue && arm.EndOffsetY.HasValue)
+        {
+            arm.EndOffsetX=x-element.X;
+            arm.EndOffsetY=y-element.Y;
+            return;
+        }
         var dx=x-element.X;
         var dy=y-element.Y;
         arm.AngleDegrees=(Math.Atan2(dx,-dy)*180/Math.PI+360)%360;
@@ -268,6 +278,10 @@ public static class JunctionGeometry
         {
             if(!double.IsFinite(arm.AngleDegrees) || !double.IsFinite(arm.LengthMm) || arm.LengthMm<=0)
                 yield return "Arm angle and length must be finite and length positive";
+            if(arm.EndOffsetX.HasValue!=arm.EndOffsetY.HasValue ||
+                (arm.EndOffsetX.HasValue &&
+                 (!double.IsFinite(arm.EndOffsetX.Value) || !double.IsFinite(arm.EndOffsetY!.Value))))
+                yield return "Endpoint overrides must be supplied as a finite coordinate pair";
             if(arm.Bends is null || arm.Bends.Count>32)
             {
                 yield return "Arm bend list must contain at most 32 points";
