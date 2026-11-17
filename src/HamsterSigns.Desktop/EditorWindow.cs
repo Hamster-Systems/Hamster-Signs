@@ -22,6 +22,11 @@ public sealed class EditorWindow : Window
     private readonly CheckBox gridEnabled = new() { Content="Snap to grid", IsChecked=true };
     private readonly ComboBox colour = new() { ItemsSource=Enum.GetValues<SignColour>() };
     private readonly TextBox textEditor = new() { Watermark="Selected text" };
+    private readonly TextBox directionXHeight = new() { Text="100", Watermark="x-height (mm)" };
+    private readonly TextBox destinationsInput = new() {
+        AcceptsReturn=true, TextWrapping=TextWrapping.NoWrap, Height=148,
+        Watermark="Place | Route | ahead/left/right | none/motorway/primary/nonprimary/tourist"
+    };
     private Guid? selectedId;
     private double zoom=1;
     private double offsetX=25, offsetY=25;
@@ -44,8 +49,23 @@ public sealed class EditorWindow : Window
         tools.Children.Add(new TextBlock { Text="HAMSTER SIGNS", FontWeight=FontWeight.Bold, FontSize=22 });
         tools.Children.Add(new TextBlock { Text="Sign properties", FontWeight=FontWeight.SemiBold });
         title.Text=Document.Title; width.Text=Format(Document.WidthMm); height.Text=Format(Document.HeightMm); colour.SelectedItem=Document.Background;
+        RestoreDirectionInputs();
         tools.Children.Add(title); tools.Children.Add(width); tools.Children.Add(height); tools.Children.Add(colour);
         tools.Children.Add(Button("Apply properties", Apply));
+        tools.Children.Add(new Separator());
+        tools.Children.Add(new TextBlock { Text="Direction sign layout", FontWeight=FontWeight.SemiBold });
+        tools.Children.Add(new TextBlock {
+            Text="One destination per line: place | route | arrow | panel. Values: ahead, left, right; none, motorway, primary, nonprimary, tourist.",
+            TextWrapping=TextWrapping.Wrap
+        });
+        destinationsInput.Text="Kendal | A6 | ahead | none\nLancaster | A591 | left | none\nThe SOUTH | (M6) | right | motorway";
+        tools.Children.Add(directionXHeight);
+        tools.Children.Add(destinationsInput);
+        tools.Children.Add(Button("Generate / regenerate sign", GenerateDirectionSign));
+        tools.Children.Add(new TextBlock {
+            Text="Preliminary calculated geometry. Transport tile metrics and legal spacing are not yet verified.",
+            TextWrapping=TextWrapping.Wrap, FontSize=11
+        });
         tools.Children.Add(new Separator());
         tools.Children.Add(new TextBlock { Text="Drawing", FontWeight=FontWeight.SemiBold });
         tools.Children.Add(Button("Add text", () => Add(new() { Kind=ElementKind.Text, X=300, Y=250, Text="Destination", FontSizeMm=135 })));
@@ -122,6 +142,55 @@ public sealed class EditorWindow : Window
     {
         if(value=="none") return Brushes.Transparent;
         try { return new SolidColorBrush(Color.Parse(value)); } catch { return Brushes.White; }
+    }
+    private void GenerateDirectionSign()
+    {
+        if(!double.TryParse(directionXHeight.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var xHeight))
+        {
+            status.Text="Enter a valid x-height in millimetres"; return;
+        }
+        var rows=new List<DirectionDestination>();
+        foreach(var raw in (destinationsInput.Text ?? "").Split('\n'))
+        {
+            if(string.IsNullOrWhiteSpace(raw)) continue;
+            var parts=raw.TrimEnd('\r').Split('|').Select(p=>p.Trim()).ToArray();
+            if(parts.Length!=4 ||
+               !Enum.TryParse<DirectionArrow>(parts[2],true,out var arrow) ||
+               !Enum.TryParse<RoutePanel>(parts[3],true,out var panel))
+            {
+                status.Text="Invalid row. Use: Place | Route | ahead/left/right | none/motorway/primary/nonprimary/tourist";
+                return;
+            }
+            rows.Add(new DirectionDestination { Place=parts[0],Route=parts[1],Arrow=arrow,RouteStyle=panel });
+        }
+        var spec=new DirectionSignSpecification {
+            XHeightMm=xHeight, Background=colour.SelectedItem is SignColour c ? c : Document.Background,
+            Destinations=rows
+        };
+        try
+        {
+            var generated=DirectionSignLayout.Build(spec,title.Text ?? "Direction sign",Document.DrawingNumber);
+            editor.Edit(d =>
+            {
+                d.Elements=generated.Elements;
+                d.DirectionDesign=generated.DirectionDesign;
+                d.WidthMm=generated.WidthMm; d.HeightMm=generated.HeightMm;
+                d.Background=generated.Background; d.Title=generated.Title;
+            });
+            selectedId=null;
+            SynchronizeProperties();
+            Fit();
+            status.Text="Generated sign from structured destinations (preliminary spacing only)";
+        }
+        catch(ArgumentException ex) {status.Text=ex.Message;}
+    }
+    private void RestoreDirectionInputs()
+    {
+        var spec=Document.DirectionDesign;
+        if(spec is null) return;
+        directionXHeight.Text=Format(spec.XHeightMm);
+        destinationsInput.Text=string.Join("\n",spec.Destinations.Select(d=>
+            $"{d.Place} | {d.Route} | {d.Arrow.ToString().ToLowerInvariant()} | {d.RouteStyle.ToString().ToLowerInvariant()}"));
     }
     private void Add(SignElement element)
     {
@@ -516,7 +585,7 @@ public sealed class EditorWindow : Window
         {
             Control? visual=element.Kind switch
             {
-                ElementKind.Text => new TextBlock { Text=element.Text, FontSize=element.FontSizeMm*s, Foreground=Brush(SignPalette.Foreground(Document.Background)) },
+                ElementKind.Text => new TextBlock { Text=element.Text, FontSize=element.FontSizeMm*s, Foreground=Brush(element.TextColor ?? SignPalette.Foreground(Document.Background)) },
                 ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
                 ElementKind.Ellipse => new Ellipse { Width=element.Width*s, Height=element.Height*s, Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s, Fill=Brush(element.Fill) },
                 ElementKind.Line => new Line { StartPoint=new Point(0,0), EndPoint=new Point((element.X2-element.X)*s,(element.Y2-element.Y)*s), Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,2) },
