@@ -21,7 +21,7 @@ editor.Document.Elements[0].Y=456;
 editor.Commit();
 Check(editor.Undo(),"Move undo executed");
 Check(editor.Document.Elements[0].X==0 && editor.Document.Elements[0].Y==0,"Move restored");
-Check(!editor.CanRedo==false,"Redo available after undo");
+Check(editor.CanRedo,"Redo available after undo");
 
 editor.Edit(doc=>doc.Title="Branch");
 Check(!editor.CanRedo,"New operation clears redo");
@@ -37,4 +37,22 @@ var svg=SvgExporter.Export(new SignDocument { Elements=[new SignElement { Kind=E
 Check(svg.Contains("A&amp;B"),"SVG escapes user text");
 Check(svg.Contains("viewBox="),"SVG emits vector viewport");
 Check(SignValidator.Check(editor.Document).Any(d=>d.Code=="STANDARDS"),"Compliance remains explicitly unverified");
+var curve=new SignElement
+{
+    Kind=ElementKind.CubicBezier,
+    X=100, Y=200, Control1X=180, Control1Y=250,
+    Control2X=300, Control2Y=350, X2=400, Y2=500,
+    StrokeWidthMm=40
+};
+var curveDoc=new SignDocument { Elements=[curve] };
+var curveSvg=SvgExporter.Export(curveDoc);
+Check(curveSvg.Contains("M 100 200 C 180 250, 300 350, 400 500"),"Curved road exported as SVG cubic path");
+var curveCopy=SignFile.Deserialize(SignFile.Serialize(curveDoc));
+Check(curveCopy.Elements[0].Control2Y==350,"Curve control points round-trip");
+var curveEditor=new SignEditorSession(curveCopy);
+curveEditor.Edit(d=>SignEditorSession.Move(d.Elements[0],125,250,100,200,25));
+Check(curveEditor.Document.Elements[0].Control1X==205,"Move updates curve control points");
+Check(curveEditor.Undo() && curveEditor.Document.Elements[0].Control1X==180,"Undo restores curved road geometry");
+curve.Control1X=double.NaN;
+Check(SignValidator.Check(curveDoc).Any(d=>d.Code=="COORD" && d.IsError),"Invalid control points rejected");
 Console.WriteLine("All tests passed.");
