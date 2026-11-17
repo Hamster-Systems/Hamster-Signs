@@ -144,11 +144,20 @@ var mediumA=TransportLetterMetrics.Measure("A",100);
 Check(mediumA.FullySpecified && Math.Abs(mediumA.WidthMm-136)<0.00001,"TM1 A tile width 5.44 sw");
 Check(Math.Abs(TransportLetterMetrics.Measure("WT",100).WidthMm-298)<0.00001,"TM1 contextual W width before T");
 Check(Math.Abs(TransportLetterMetrics.Measure("T",100).WidthMm-109)<0.00001,"TM1 standard T width");
-Check(!TransportLetterMetrics.Measure("Kendal",100).FullySpecified,"Lowercase letters explicitly unverified");
+Check(TransportLetterMetrics.Measure("Kendal",100).FullySpecified,"TM2 lowercase letters have verified tile widths");
+Check(Math.Abs(TransportLetterMetrics.Measure("a",100).WidthMm-111)<0.00001,"TM2 lowercase a is 4.44 sw");
+Check(Math.Abs(TransportLetterMetrics.Measure("6",100).WidthMm-126)<0.00001,"TM3 numeral 6 is 5.04 sw");
+Check(Math.Abs(TransportLetterMetrics.Measure("(",100).WidthMm-105)<0.00001,"TM2 parenthesis is 4.20 sw");
+Check(!TransportLetterMetrics.Measure("Café",100).FullySpecified,"Unsupported accented glyph is flagged");
 Check(TransportLetterMetrics.Measure("A B",100).WidthMm==
     TransportLetterMetrics.Measure("AB",100).WidthMm+62.5,"Word gap accounted for in tiles");
-Check(DirectionSignLayout.TypographyWarnings(specification).Any(w=>w.Contains("Unverified Transport")),
-    "Typography audit lists unverified characters");
+Check(!DirectionSignLayout.TypographyWarnings(specification).Any(w=>w.Contains("Unverified Transport")),
+    "Common TM1/TM2/TM3 sample legends no longer use width fallback");
+var accentedSpec=new DirectionSignSpecification {
+    Destinations=[new DirectionDestination {Place="Café",Route="A1"}]
+};
+Check(DirectionSignLayout.TypographyWarnings(accentedSpec).Any(w=>w.Contains("é")),
+    "Typography audit lists genuinely unsupported accented glyphs");
 var capitalsOnly=new DirectionSignSpecification {
     XHeightMm=100,
     Destinations=[new DirectionDestination {Place="NORTH",Route="",Arrow=DirectionArrow.Ahead}]
