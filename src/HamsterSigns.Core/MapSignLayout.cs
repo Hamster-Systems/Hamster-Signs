@@ -135,10 +135,12 @@ public static class MapSignLayout
             destination.LinkedMapArmId=arm.Id;
 
             var placeY=labelTop+(rowH-tileH)/2;
-            labels.Add(new SignElement {
+            var placeElement=new SignElement {
                 Kind=ElementKind.Text,X=labelX,Y=placeY,Text=destination.Place,
                 FontSizeMm=x,TextColor=foreground,FontRole=normalFont
-            });
+            };
+            labels.Add(placeElement);
+            destination.MapPlaceElementId=placeElement.Id;
             if(!string.IsNullOrWhiteSpace(destination.Route))
             {
                 var routeX=labelX+TextWidth(destination.Place,x)+gap;
@@ -158,23 +160,27 @@ public static class MapSignLayout
                         _=>throw new InvalidOperationException()
                     };
                     var bordered=DirectionLayoutRules.NeedsWhitePatchBorder(destination.RouteStyle,spec.Background);
-                    patches.Add(new SignElement {
+                    var patchElement=new SignElement {
                         Kind=ElementKind.Panel,X=routeX,Y=labelTop,
                         Width=routeTextW+2*patchInset,Height=rowH,
                         CornerRadiusMm=DirectionLayoutRules.PatchCornerRadius(x),Fill=fill,
                         Stroke=bordered ? "#ffffff" : "none",
                         StrokeWidthMm=bordered ? DirectionLayoutRules.DarkPatchBorderWidth(x) : 0
-                    });
+                    };
+                    patches.Add(patchElement);
+                    destination.MapPatchElementId=patchElement.Id;
                     routeColor=text;
                 }
-                labels.Add(new SignElement {
+                var routeElement=new SignElement {
                     Kind=ElementKind.Text,X=routeX+textInset,Y=placeY,Text=destination.Route,
                     FontSizeMm=x,TextColor=routeColor,
                     FontRole=destination.RouteStyle==RoutePanel.Motorway
                         ? SignFontRole.MotorwayPermanent
                         : destination.RouteStyle==RoutePanel.NonPrimary
                             ? SignFontRole.TransportHeavy : normalFont
-                });
+                };
+                labels.Add(routeElement);
+                destination.MapRouteElementId=routeElement.Id;
             }
         }
         diagram.Junction.Arms.Add(new JunctionArm {
