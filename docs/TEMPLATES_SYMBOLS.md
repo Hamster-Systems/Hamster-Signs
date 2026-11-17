@@ -1,3 +1,15 @@
+## v0.11 — Branch-adjacent map legends
+
+MapAdvance and MotorwayMap now use a dedicated `MapSignLayout` composer rather than shifting a stacked sign next to a junction. Destinations are placed in separate non-overlapping zones:
+
+- **Ahead** — at the top, beside the upward road branch
+- **Left** — to the left of the junction, beside the left branch
+- **Right** — to the right of the junction, beside the right branch
+
+Route-number legends and their coloured patches remain on the same line as their place names. Each destination links to a road arm via `LinkedMapArmId`; the incoming arm is distinct. Map row and patch boxes are evaluated for rectangular collisions, and the editor displays diagnostics for overlaps or missing links. The layout expands to accommodate up to six destinations including multiple arms in the same direction.
+
+The layout retains fully editable CAD elements, uses the same vector geometry for on-screen preview and SVG export, and preserves the source destination data in native JSON. *This is a provisional branch-label layout, not a TSRGD-approved map-type sign or collision-free path routing system.* Moving arms manually can still cause road/letter overlap; true contour-based clearance is a later milestone.
+
 # v0.10 — Sign templates and vector symbol palette
 
 ## Templates in the desktop editor
