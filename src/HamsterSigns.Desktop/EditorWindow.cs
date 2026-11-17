@@ -166,7 +166,7 @@ public sealed class EditorWindow : Window
                 AllowMultiple=false
             });
             if(files.Count==0) return;
-            var localPath=files[0].TryGetLocalPath();
+            var localPath=files[0].Path.IsFile ? files[0].Path.LocalPath : null;
             if(string.IsNullOrWhiteSpace(localPath))
                 throw new InvalidOperationException("Font must be available as a local file.");
             fontRenderer.SetFont(role,localPath);
