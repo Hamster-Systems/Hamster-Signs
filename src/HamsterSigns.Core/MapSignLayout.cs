@@ -207,15 +207,22 @@ public static class MapSignLayout
             if(!row.LinkedMapArmId.HasValue || !ids.Contains(row.LinkedMapArmId.Value))
                 warnings.Add($"Destination '{row.Place}' has no matching road arm.");
 
-        // Check rectangular text and patch tiles for overlap (not actual glyph
-        // outlines). The final road/legend clearance requires manual review.
+        warnings.AddRange(AuditLegendOverlaps(doc));
+        warnings.AddRange(MapRoadClearance.Audit(doc));
+        return warnings;
+    }
+
+    public static IReadOnlyList<string> AuditLegendOverlaps(SignDocument doc)
+    {
+        var warnings=new List<string>();
+        // Rectangular text tiles and panels are approximate; text within its
+        // own patch is allowed. Only like-for-like overlaps are reported.
         var elements=doc.Elements.Where(e=>e.Kind==ElementKind.Text ||
             (e.Kind==ElementKind.Panel && e.Fill!="none")).ToList();
         for(var i=0;i<elements.Count;i++)
             for(var j=i+1;j<elements.Count;j++)
             {
                 var a=elements[i];var b=elements[j];
-                // Containment of text inside its own patch is intentional.
                 if(a.Kind!=b.Kind) continue;
                 double W(SignElement e) => e.Kind==ElementKind.Text
                     ? TextWidth(e.Text,e.FontSizeMm) : e.Width;
