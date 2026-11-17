@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace HamsterSigns.Core;
 
 public enum SignColour { PrimaryGreen, MotorwayBlue, NonPrimaryWhite, TouristBrown, TemporaryYellow }
-public enum ElementKind { Text, Panel, Line, Ellipse, CubicBezier, Junction }
+public enum ElementKind { Text, Panel, Line, Ellipse, CubicBezier, Junction, Symbol }
 public enum SignFontRole { Automatic, TransportMedium, TransportHeavy, MotorwayPermanent }
 
 public sealed class SignDocument
@@ -56,6 +56,7 @@ public sealed class SignElement
     public double StrokeWidthMm { get; set; } = 5;
     public double CornerRadiusMm { get; set; }
     public JunctionDiagram? Junction { get; set; }
+    public SignSymbolKind SymbolKind { get; set; } = SignSymbolKind.Parking;
 }
 public static class SignFile
 {
