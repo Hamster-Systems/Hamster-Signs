@@ -89,7 +89,11 @@ public sealed class FontOutlineRenderer
                 advance=(float)current;
             }
             else
-                advance=font.GetGlyphWidths(ids)[0];
+            {
+                Span<float> glyphWidths=stackalloc float[1];
+                font.GetGlyphWidths(ids,glyphWidths,Span<SKRect>.Empty,null);
+                advance=glyphWidths[0];
+            }
             cursor+=advance;
         }
         return total.ToSvgPathData();
