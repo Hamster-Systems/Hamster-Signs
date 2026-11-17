@@ -25,6 +25,9 @@ public sealed class EditorWindow : Window
     private readonly CheckBox moveMapGroups = new() { Content="Move linked map legends together",IsChecked=true };
     private readonly CheckBox protectMapClearance = new() { Content="Block legend overlaps and road collisions",IsChecked=true };
     private readonly CheckBox autoRouteMapArms = new() { Content="Auto-route linked road when moving destination",IsChecked=true };
+    private readonly TextBlock routingFeedback = new() {
+        Text="Linked road auto-routing is ready.",TextWrapping=TextWrapping.Wrap,FontSize=11
+    };
     private IReadOnlyDictionary<Guid,(double X,double Y)> groupOrigins =
         new Dictionary<Guid,(double X,double Y)>();
     private readonly TextBlock linkedRoadInfo = new() {
@@ -111,6 +114,7 @@ public sealed class EditorWindow : Window
         tools.Children.Add(moveMapGroups);
         tools.Children.Add(protectMapClearance);
         tools.Children.Add(autoRouteMapArms);
+        tools.Children.Add(routingFeedback);
         tools.Children.Add(Button("Auto-route selected destination", AutoRouteSelectedDestination));
         tools.Children.Add(Button("Add junction arm", AddJunctionArm));
         tools.Children.Add(Button("Remove last arm", RemoveJunctionArm));
@@ -361,7 +365,7 @@ public sealed class EditorWindow : Window
         MapAutoRouter.Result? result=null;
         editor.Edit(d=>result=MapAutoRouter.MoveLinkedLegend(d,id,origins,0,0,
             protectMapClearance.IsChecked==true));
-        status.Text=result?.Message ?? "No auto-routing change.";
+        routingFeedback.Text=result?.Message ?? "No auto-routing change.";
         typographyWarningText.Text=Document.DirectionDesign is null ? ""
             : string.Join("\n",DirectionSignLayout.TypographyWarnings(Document.DirectionDesign)
                 .Concat(MapSignLayout.Audit(Document)));
@@ -512,7 +516,7 @@ public sealed class EditorWindow : Window
             {
                 var result=MapAutoRouter.MoveLinkedLegend(Document,groupId,groupOrigins,
                     snappedX-originX,snappedY-originY,protectMapClearance.IsChecked==true);
-                if(!result.Success) status.Text=result.Message;
+                routingFeedback.Text=result.Message;
             }
             else if(!MapLegendGroups.MoveFromOrigins(Document,groupOrigins,
                 snappedX-originX,snappedY-originY,protectMapClearance.IsChecked==true))
