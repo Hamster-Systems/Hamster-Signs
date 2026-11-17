@@ -328,4 +328,41 @@ Check(JunctionGeometry.Validate(noLink).Any(e=>e.Contains("coordinate pair")),
 var arrowStack=SignTemplateCatalog.Build(SignTemplateKind.StackAdvance,DirectionSignLayout.Example());
 Check(arrowStack.Elements.Where(e=>e.Kind==ElementKind.Line).All(e=>e.StrokeWidthMm>=17.5),
       "Stack direction arrows have increased stroke weight");
+// v0.11: legend positions follow road branches, not an unrelated stacked list.
+var mapZones=SignTemplateCatalog.Build(SignTemplateKind.MapAdvance,DirectionSignLayout.Example());
+var centre=mapZones.Elements.Single(e=>e.Kind==ElementKind.Junction);
+var leftLabel=mapZones.Elements.Single(e=>e.Kind==ElementKind.Text && e.Text=="Lancaster");
+var rightLabel=mapZones.Elements.Single(e=>e.Kind==ElementKind.Text && e.Text=="The SOUTH");
+var aheadLabel=mapZones.Elements.Single(e=>e.Kind==ElementKind.Text && e.Text=="Kendal");
+Check(leftLabel.X<centre.X && rightLabel.X>centre.X && aheadLabel.X>centre.X,
+    "Destinations occupy side-specific zones around map centre");
+Check(aheadLabel.Y<centre.Y && Math.Abs(leftLabel.Y-rightLabel.Y)<200,
+    "Ahead legend sits above the junction; side legends flank it");
+Check(MapSignLayout.Audit(mapZones).Count==0,
+    "Example map has no orphaned links or overlapping text/patch tiles");
+var routeLabels=mapZones.Elements.Where(e=>e.Kind==ElementKind.Text &&
+    (e.Text=="A6" || e.Text=="A591" || e.Text=="(M6)")).ToArray();
+Check(routeLabels.Length==3,"All map route numbers remain present");
+var motorwayPatchInMap=mapZones.Elements.Single(e=>e.Kind==ElementKind.Panel &&
+    e.Fill=="#174c9a");
+Check(motorwayPatchInMap.X>centre.X && motorwayPatchInMap.Y>aheadLabel.Y,
+    "Motorway patch stays with its right-side destination");
+var allLeft=new DirectionSignSpecification {
+    Destinations=Enumerable.Range(0,6).Select(i=>new DirectionDestination {
+        Place=$"Destination {i+1}",Route="A123",Arrow=DirectionArrow.Left
+    }).ToList()
+};
+var crowdedMap=SignTemplateCatalog.Build(SignTemplateKind.MapAdvance,allLeft);
+Check(MapSignLayout.Audit(crowdedMap).Count==0,
+    "Six left-side branches fit without label collisions");
+Check(crowdedMap.Elements.Where(e=>e.Kind==ElementKind.Text)
+    .All(e=>e.Y>=0 && e.Y+TransportLetterMetrics.TileHeight(e.FontSizeMm)<=crowdedMap.HeightMm),
+    "Six left-side destination tiles fit on the sign face");
+var newMapSave=SignFile.Deserialize(SignFile.Serialize(mapZones));
+Check(MapSignLayout.Audit(newMapSave).Count==0,
+    "Positioned map legends and arm links survive JSON save/load");
+var orphaned=SignFile.Deserialize(SignFile.Serialize(mapZones));
+orphaned.DirectionDesign!.Destinations[0].LinkedMapArmId=Guid.NewGuid();
+Check(MapSignLayout.Audit(orphaned).Any(w=>w.Contains("no matching road arm")),
+    "Map audit flags broken destination-to-arm links");
 Console.WriteLine("All tests passed.");
