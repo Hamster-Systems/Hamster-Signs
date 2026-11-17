@@ -54,6 +54,7 @@ public sealed class SignElement
     public SignFontRole FontRole { get; set; } = SignFontRole.Automatic;
     public string Stroke { get; set; } = "#ffffff";
     public double StrokeWidthMm { get; set; } = 5;
+    public double CornerRadiusMm { get; set; }
     public JunctionDiagram? Junction { get; set; }
 }
 public static class SignFile
