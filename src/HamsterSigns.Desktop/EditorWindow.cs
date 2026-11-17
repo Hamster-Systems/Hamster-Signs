@@ -25,6 +25,7 @@ public sealed class EditorWindow : Window
     private readonly FontOutlineRenderer fontRenderer = new();
     private readonly TextBlock fontStatus = new() { Text="No local font files loaded.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox directionXHeight = new() { Text="100", Watermark="x-height (mm)" };
+    private readonly CheckBox roundSignDimensions = new() { Content="Round overall dimensions (Chapter 7 section 2.6)", IsChecked=true };
     private readonly TextBlock typographyWarningText = new() { Text="No layout audit yet.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox destinationsInput = new() {
         AcceptsReturn=true, TextWrapping=TextWrapping.NoWrap, Height=148,
@@ -63,6 +64,7 @@ public sealed class EditorWindow : Window
         });
         destinationsInput.Text="Kendal | A6 | ahead | none\nLancaster | A591 | left | none\nThe SOUTH | (M6) | right | motorway";
         tools.Children.Add(directionXHeight);
+        tools.Children.Add(roundSignDimensions);
         tools.Children.Add(destinationsInput);
         tools.Children.Add(Button("Generate / regenerate sign", GenerateDirectionSign));
         tools.Children.Add(typographyWarningText);
@@ -223,7 +225,7 @@ public sealed class EditorWindow : Window
         }
         var spec=new DirectionSignSpecification {
             XHeightMm=xHeight, Background=colour.SelectedItem is SignColour c ? c : Document.Background,
-            Destinations=rows
+            RoundDimensions=roundSignDimensions.IsChecked==true, Destinations=rows
         };
         try
         {
@@ -249,6 +251,7 @@ public sealed class EditorWindow : Window
         var spec=Document.DirectionDesign;
         if(spec is null) return;
         directionXHeight.Text=Format(spec.XHeightMm);
+        roundSignDimensions.IsChecked=spec.RoundDimensions;
         destinationsInput.Text=string.Join("\n",spec.Destinations.Select(d=>
             $"{d.Place} | {d.Route} | {d.Arrow.ToString().ToLowerInvariant()} | {d.RouteStyle.ToString().ToLowerInvariant()}"));
         typographyWarningText.Text=string.Join("\n",DirectionSignLayout.TypographyWarnings(spec));
@@ -648,7 +651,7 @@ public sealed class EditorWindow : Window
             Control? visual=element.Kind switch
             {
                 ElementKind.Text => TextVisual(element,s),
-                ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
+                ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, RadiusX=element.CornerRadiusMm*s, RadiusY=element.CornerRadiusMm*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
                 ElementKind.Ellipse => new Ellipse { Width=element.Width*s, Height=element.Height*s, Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s, Fill=Brush(element.Fill) },
                 ElementKind.Line => new Line { StartPoint=new Point(0,0), EndPoint=new Point((element.X2-element.X)*s,(element.Y2-element.Y)*s), Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,2) },
                 ElementKind.Junction => JunctionVisual(element,s),
