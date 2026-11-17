@@ -28,7 +28,7 @@ public sealed class EditorWindow : Window
     private double baseScale=1;
     private Point dragStart;
     private double originX, originY, originX2, originY2;
-    private bool dragging, panning, changed;
+    private bool dragging, panning;
     private const double MinZoom=0.2, MaxZoom=8;
 
     public EditorWindow()
@@ -181,7 +181,7 @@ public sealed class EditorWindow : Window
         selectedId=element.Id; textEditor.Text=element.Kind==ElementKind.Text ? element.Text : "";
         dragStart=e.GetPosition(canvas);
         originX=element.X; originY=element.Y; originX2=element.X2; originY2=element.Y2;
-        editor.Begin(); dragging=true; changed=false;
+        editor.Begin(); dragging=true;
         e.Pointer.Capture(canvas);
         e.Handled=true;
         Draw();
@@ -197,7 +197,7 @@ public sealed class EditorWindow : Window
         }
         var element=Selected;
         if(element is null) return;
-        var dx=(point.X-dragStart.X)/Scale, dy=(point.Y-dragStart.Y)/Scale;
+        double dx=(point.X-dragStart.X)/Scale, dy=(point.Y-dragStart.Y)/Scale;
         element.X=SignEditorSession.Snap(originX+dx,Grid);
         element.Y=SignEditorSession.Snap(originY+dy,Grid);
         if(element.Kind==ElementKind.Line)
@@ -205,7 +205,7 @@ public sealed class EditorWindow : Window
             element.X2=originX2+(element.X-originX);
             element.Y2=originY2+(element.Y-originY);
         }
-        changed=true; Draw();
+        Draw();
     }
     private void CanvasReleased(object? sender, PointerReleasedEventArgs e)
     {
@@ -218,7 +218,7 @@ public sealed class EditorWindow : Window
             if(commit) editor.Commit(); else editor.Cancel();
             if(!commit) selectedId=null;
         }
-        dragging=false; panning=false; changed=false; Draw();
+        dragging=false; panning=false; Draw();
     }
     private async void Save()
     {
