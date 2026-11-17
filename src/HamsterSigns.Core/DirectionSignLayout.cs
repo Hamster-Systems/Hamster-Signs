@@ -11,6 +11,8 @@ public sealed class DirectionDestination
     public string Route { get; set; } = "";
     public DirectionArrow Arrow { get; set; } = DirectionArrow.Ahead;
     public RoutePanel RouteStyle { get; set; } = RoutePanel.None;
+    // Populated by map-type templates. Links the legend to an editable road arm.
+    public Guid? LinkedMapArmId { get; set; }
 }
 
 public sealed class DirectionSignSpecification
