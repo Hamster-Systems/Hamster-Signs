@@ -1,3 +1,16 @@
+## v0.12 — Grouped map legends and clearance guard
+
+The map-template generator gives each destination a persistent set of element IDs for its place text, route number and optional coloured patch. Those objects remain independently editable, but by default **dragging any one moves the whole destination group**. Undo reverses the whole movement at once.
+
+The editor now includes two options beside the junction tools:
+
+- **Move linked map legends together** (default on): drag one legend component to move all components by the same millimetre displacement.
+- **Block legend overlaps and road collisions** (default on): reject a dragged position if any group component leaves the sign face, if text/patch rows overlap, or if a sampled road centreline passes within the provisional clearance around a legend.
+
+The second check samples straight and quadratic road segments at discrete intervals and inflates each legend's approximate rectangular tile by a stroke-width-based clearance. It is **not** a precise glyph-outline/collision-engineering calculation. It does not automatically reroute road branches. For exploratory layout, disable the guard and inspect the diagnostics manually. Dragging an individual Bézier control point can still introduce overlaps; the audit will flag those.
+
+Project JSON retains the group IDs. SVG exports only the finished vector artwork.
+
 ## v0.11 — Branch-adjacent map legends
 
 MapAdvance and MotorwayMap now use a dedicated `MapSignLayout` composer rather than shifting a stacked sign next to a junction. Destinations are placed in separate non-overlapping zones:
