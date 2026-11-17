@@ -17,6 +17,7 @@ public sealed class DirectionSignSpecification
 {
     public double XHeightMm { get; set; } = 100;
     public SignColour Background { get; set; } = SignColour.PrimaryGreen;
+    public bool RoundDimensions { get; set; } = true;
     public List<DirectionDestination> Destinations { get; set; } = [];
 }
 
@@ -47,7 +48,7 @@ public static class DirectionSignLayout
             }
         }
         warnings.Add("Rendered glyph outlines use a system font, not a verified Transport typeface.");
-        warnings.Add("Sign borders, symbols, route patches and element spacing still require standards verification.");
+        warnings.AddRange(DirectionLayoutRules.Audit(design));
         return warnings.Distinct().ToArray();
     }
 
@@ -78,7 +79,7 @@ public static class DirectionSignLayout
     private static (string Fill,string Foreground) PanelColors(RoutePanel style,SignColour sign) => style switch
     {
         RoutePanel.Motorway => ("#174c9a","#ffffff"),
-        RoutePanel.Primary => ("#006b45","#ffffff"),
+        RoutePanel.Primary => ("#006b45","#f7df32"),
         RoutePanel.NonPrimary => ("#ffffff","#111111"),
         RoutePanel.Tourist => ("#754b31","#ffffff"),
         _ => (SignPalette.Background(sign),SignPalette.Foreground(sign))
@@ -97,93 +98,109 @@ public static class DirectionSignLayout
 
         var x=spec.XHeightMm;
         var sw=TransportLetterMetrics.StrokeWidth(x);
-        var margin=Round5(1.75*x);
-        var arrowW=Round5(1.5*x);
-        var routePad=Round5(.35*x);
-        var rowHeight=TransportLetterMetrics.TileHeight(x);
-        var rowGap=Round5(2*sw);
-        var width=0d;
-        foreach(var row in spec.Destinations)
+        var border=DirectionLayoutRules.MainBorderWidth(x);
+        var padding=border+DirectionLayoutRules.OuterTileClearance(x);
+        var horizontalGap=DirectionLayoutRules.LegendPatchGap(x);
+        // Provisional row and arrow style; no claim of a sign-type approval.
+        var arrowSlot=6*sw;
+        var tileHeight=TransportLetterMetrics.TileHeight(x);
+        var patchHeight=tileHeight+2*DirectionLayoutRules.RoutePatchInset(x);
+        var rowHeight=patchHeight;
+        var rowGap=2*sw;
+        var maxPlace=spec.Destinations.Max(row=>Width(row.Place,x));
+        var hasRoute=spec.Destinations.Any(row=>!string.IsNullOrWhiteSpace(row.Route));
+        double RouteItemWidth(DirectionDestination row)
         {
-            var placeWidth=Width(row.Place,x);
-            var routeWidth=string.IsNullOrWhiteSpace(row.Route) ? 0 : Width(row.Route,x)+routePad*2;
-            var needed=margin*2+arrowW+Round5(2.5*sw)+placeWidth+
-                (routeWidth>0 ? Round5(2.5*sw)+routeWidth : 0);
-            width=Math.Max(width,needed);
+            if(string.IsNullOrWhiteSpace(row.Route)) return 0;
+            var inset=row.RouteStyle==RoutePanel.None ? 0 : DirectionLayoutRules.RoutePatchInset(x);
+            return Width(row.Route,x)+2*inset;
         }
-        width=Round5(Math.Max(720,width));
-        var height=Round5(margin*2+spec.Destinations.Count*rowHeight+
-            (spec.Destinations.Count-1)*rowGap);
+        var maxRoute=hasRoute ? spec.Destinations.Max(RouteItemWidth) : 0d;
+        var rawWidth=2*padding+arrowSlot+horizontalGap+maxPlace+
+            (hasRoute ? horizontalGap+maxRoute : 0);
+        var rawHeight=2*padding+spec.Destinations.Count*rowHeight+
+            (spec.Destinations.Count-1)*rowGap;
+        var width=DirectionLayoutRules.RoundUp(Math.Max(720,rawWidth),x,spec.RoundDimensions);
+        var height=DirectionLayoutRules.RoundUp(rawHeight,x,spec.RoundDimensions);
+        // Chapter 7 section 2.6.3: distribute any optional rounding equally.
+        var left=padding+(width-Math.Max(720,rawWidth))/2;
+        var top=padding+(height-rawHeight)/2;
         var foreground=SignPalette.Foreground(spec.Background);
-
-        var doc=new SignDocument
-        {
-            Title=title,
-            DrawingNumber=drawingNumber,
-            Background=spec.Background,
-            WidthMm=width,
-            HeightMm=height,
-            DirectionDesign=spec,
-            Elements=[]
+        var document=new SignDocument {
+            Title=title,DrawingNumber=drawingNumber,Background=spec.Background,
+            WidthMm=width,HeightMm=height,DirectionDesign=spec,Elements=[]
         };
-        // Border deliberately treated as editable artwork, not certified TSRGD geometry.
-        doc.Elements.Add(new SignElement
-        {
-            Kind=ElementKind.Panel,X=sw*1.1,Y=sw*1.1,Width=width-sw*2.2,Height=height-sw*2.2,
-            Fill="none",Stroke=foreground,StrokeWidthMm=sw*.35
+        // Border centreline is inset by half its width; outer edge lies on sign face.
+        document.Elements.Add(new SignElement {
+            Kind=ElementKind.Panel,X=border/2,Y=border/2,
+            Width=width-border,Height=height-border,
+            CornerRadiusMm=border,Fill="none",Stroke=foreground,StrokeWidthMm=border
         });
 
-        var textX=margin+arrowW+Round5(2.5*sw);
+        var textX=left+arrowSlot+horizontalGap;
         for(var i=0;i<spec.Destinations.Count;i++)
         {
             var row=spec.Destinations[i];
-            var top=margin+i*(rowHeight+rowGap);
-            var mid=top+rowHeight/2;
-            var tip=margin+arrowW*.55;
-            var arrowSize=arrowW*.75;
+            var rowTop=top+i*(rowHeight+rowGap);
+            var tileTop=rowTop+(rowHeight-tileHeight)/2;
+            var middle=rowTop+rowHeight/2;
+            // Symbol centres are offset upwards by 0.5 sw (Chapter 7, 3.5.1).
+            var symbolMiddle=middle-sw*.5;
+            var tip=left+arrowSlot/2;
+            var arrowSize=4*sw;
             var arrowStroke=Math.Max(5,sw*.45);
-            // Stroked arrows with separate diagonal tips, no text glyph dependency.
             switch(row.Arrow)
             {
                 case DirectionArrow.Ahead:
-                    doc.Elements.Add(Line(tip,mid+arrowSize*.35,tip,mid-arrowSize*.35,arrowStroke,foreground));
-                    doc.Elements.Add(Line(tip,mid-arrowSize*.35,tip-arrowSize*.25,mid-arrowSize*.08,arrowStroke,foreground));
-                    doc.Elements.Add(Line(tip,mid-arrowSize*.35,tip+arrowSize*.25,mid-arrowSize*.08,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip,symbolMiddle+arrowSize*.35,tip,symbolMiddle-arrowSize*.35,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip,symbolMiddle-arrowSize*.35,tip-arrowSize*.25,symbolMiddle-arrowSize*.08,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip,symbolMiddle-arrowSize*.35,tip+arrowSize*.25,symbolMiddle-arrowSize*.08,arrowStroke,foreground));
                     break;
                 case DirectionArrow.Left:
-                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip-arrowSize*.36,mid,arrowStroke,foreground));
-                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip-arrowSize*.07,mid-arrowSize*.26,arrowStroke,foreground));
-                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip-arrowSize*.07,mid+arrowSize*.26,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip+arrowSize*.36,symbolMiddle,tip-arrowSize*.36,symbolMiddle,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip-arrowSize*.36,symbolMiddle,tip-arrowSize*.07,symbolMiddle-arrowSize*.26,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip-arrowSize*.36,symbolMiddle,tip-arrowSize*.07,symbolMiddle+arrowSize*.26,arrowStroke,foreground));
                     break;
                 case DirectionArrow.Right:
-                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip+arrowSize*.36,mid,arrowStroke,foreground));
-                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip+arrowSize*.07,mid-arrowSize*.26,arrowStroke,foreground));
-                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip+arrowSize*.07,mid+arrowSize*.26,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip-arrowSize*.36,symbolMiddle,tip+arrowSize*.36,symbolMiddle,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip+arrowSize*.36,symbolMiddle,tip+arrowSize*.07,symbolMiddle-arrowSize*.26,arrowStroke,foreground));
+                    document.Elements.Add(Line(tip+arrowSize*.36,symbolMiddle,tip+arrowSize*.07,symbolMiddle+arrowSize*.26,arrowStroke,foreground));
                     break;
             }
 
             var normalFont=spec.Background is SignColour.NonPrimaryWhite or SignColour.TemporaryYellow
                 ? SignFontRole.TransportHeavy : SignFontRole.TransportMedium;
-            doc.Elements.Add(Text(row.Place,textX,mid-x*.66,x,foreground,normalFont));
+            // Text uses its existing Y-origin convention; tile top is an authored
+            // layout position, not a claim that the loaded glyph contour starts there.
+            document.Elements.Add(Text(row.Place,textX,tileTop,x,foreground,normalFont));
+
             if(!string.IsNullOrWhiteSpace(row.Route))
             {
-                var routeW=Width(row.Route,x)+routePad*2;
-                var routeX=width-margin-routeW;
-                var (fill,panelText)=PanelColors(row.RouteStyle,spec.Background);
-                if(row.RouteStyle==RoutePanel.None && spec.Background==SignColour.PrimaryGreen)
-                    panelText="#f7df32";
-                // For route values without a patch, draw the legend directly on the sign.
+                var itemWidth=RouteItemWidth(row);
+                var itemX=width-left-itemWidth;
+                var (fill,patchForeground)=PanelColors(row.RouteStyle,spec.Background);
+                var routeColor=row.RouteStyle==RoutePanel.None
+                    ? (spec.Background==SignColour.PrimaryGreen ? "#f7df32" : foreground)
+                    : patchForeground;
+                var textInset=0d;
                 if(row.RouteStyle!=RoutePanel.None)
-                    doc.Elements.Add(new SignElement {
-                        Kind=ElementKind.Panel,X=routeX,Y=mid-x*.95,Width=routeW,
-                        Height=x*1.9,Fill=fill,Stroke=panelText,StrokeWidthMm=sw*.13
+                {
+                    textInset=DirectionLayoutRules.RoutePatchInset(x);
+                    var needsBorder=DirectionLayoutRules.NeedsWhitePatchBorder(row.RouteStyle,spec.Background);
+                    document.Elements.Add(new SignElement {
+                        Kind=ElementKind.Panel,X=itemX,Y=rowTop,
+                        Width=itemWidth,Height=patchHeight,
+                        CornerRadiusMm=DirectionLayoutRules.PatchCornerRadius(x),
+                        Fill=fill,Stroke=needsBorder ? "#ffffff" : "none",
+                        StrokeWidthMm=needsBorder ? DirectionLayoutRules.DarkPatchBorderWidth(x) : 0
                     });
+                }
                 var routeFont=row.RouteStyle==RoutePanel.Motorway ? SignFontRole.MotorwayPermanent :
                     row.RouteStyle==RoutePanel.NonPrimary ? SignFontRole.TransportHeavy : normalFont;
-                doc.Elements.Add(Text(row.Route,routeX+routePad,mid-x*.66,x,panelText,routeFont));
+                document.Elements.Add(Text(row.Route,itemX+textInset,tileTop,x,routeColor,routeFont));
             }
         }
-        return doc;
+        return document;
     }
 
     public static DirectionSignSpecification Example() => new()
