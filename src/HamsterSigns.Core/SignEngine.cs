@@ -35,10 +35,15 @@ public static class SignValidator
                 result.Add(new("TEXT", $"Text element {e.Id} has invalid content.", true));
             if (e.Kind is ElementKind.Panel or ElementKind.Ellipse && (e.Width <= 0 || e.Height <= 0))
                 result.Add(new("GEOMETRY", $"Shape {e.Id} has invalid dimensions.", true));
+            if (e.Kind==ElementKind.Text && e.TextColor is not null && !System.Text.RegularExpressions.Regex.IsMatch(e.TextColor, "^#[0-9a-fA-F]{6}$"))
+                result.Add(new("COLOR", $"Element {e.Id} has an invalid text colour.", true));
             if (e.Kind==ElementKind.Junction)
                 foreach(var error in JunctionGeometry.Validate(e))
                     result.Add(new("JUNCTION", $"Element {e.Id}: {error}", true));
         }
+        if(doc.DirectionDesign is not null)
+            foreach(var error in DirectionSignLayout.Validate(doc.DirectionDesign))
+                result.Add(new("DIRECTION",error,true));
         result.Add(new("STANDARDS", "TSRGD compliance checks are not implemented. Professional verification is required.", false));
         return result;
     }
@@ -60,7 +65,7 @@ public static class SvgExporter
             switch (e.Kind)
             {
                 case ElementKind.Text:
-                    b.AppendLine($"<text x=\"{F(e.X)}\" y=\"{F(e.Y+e.FontSizeMm)}\" fill=\"{SignPalette.Foreground(doc.Background)}\" font-family=\"sans-serif\" font-size=\"{F(e.FontSizeMm)}\">{E(e.Text)}</text>");
+                    b.AppendLine($"<text x=\"{F(e.X)}\" y=\"{F(e.Y+e.FontSizeMm)}\" fill=\"{E(e.TextColor ?? SignPalette.Foreground(doc.Background))}\" font-family=\"sans-serif\" font-size=\"{F(e.FontSizeMm)}\">{E(e.Text)}</text>");
                     break;
                 case ElementKind.Panel:
                     b.AppendLine($"<rect x=\"{F(e.X)}\" y=\"{F(e.Y)}\" width=\"{F(e.Width)}\" height=\"{F(e.Height)}\" fill=\"{E(e.Fill)}\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
