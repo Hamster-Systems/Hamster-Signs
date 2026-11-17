@@ -172,4 +172,21 @@ var oneWordWidth=DirectionSignLayout.Build(new DirectionSignSpecification {
     XHeightMm=100, Destinations=[new DirectionDestination {Place="NORTHSOUTH"}]
 }).WidthMm;
 Check(twoWordWidth>oneWordWidth,"Sign auto sizing respects the prescribed word gap");
+// v0.8: embedded geometry provided by a local font renderer.
+var vectorDoc=new SignDocument { Elements=[new SignElement {
+    Kind=ElementKind.Text, Text="TEST", X=40,Y=50,FontSizeMm=100,
+    FontRole=SignFontRole.TransportHeavy,TextColor="#000000"
+}]};
+var vectorSvg=SvgExporter.Export(vectorDoc,_=>"M 40 50 L 70 50 L 70 80 Z");
+Check(vectorSvg.Contains("fill-rule=\\"nonzero\\""),"Outline export emits a vector filled path");
+Check(vectorSvg.Contains("M 40 50 L 70 50 L 70 80 Z"),"Outline export embeds provider path");
+Check(!vectorSvg.Contains("<text"),"Outlined text is not dependent on recipient fonts");
+Check(SvgExporter.Export(vectorDoc).Contains("<text"),"SVG falls back to readable text when fonts are unavailable");
+Check(SignFile.Deserialize(SignFile.Serialize(vectorDoc)).Elements[0].FontRole==SignFontRole.TransportHeavy,
+    "Font role survives JSON round-trip");
+var assigned=DirectionSignLayout.Build(DirectionSignLayout.Example());
+Check(assigned.Elements.Any(e=>e.Kind==ElementKind.Text && e.Text=="(M6)" &&
+    e.FontRole==SignFontRole.MotorwayPermanent),"Motorway route patch selects specialist font role");
+Check(assigned.Elements.Any(e=>e.Kind==ElementKind.Text && e.Text=="Kendal" &&
+    e.FontRole==SignFontRole.TransportMedium),"Primary destinations use Medium role");
 Console.WriteLine("All tests passed.");
