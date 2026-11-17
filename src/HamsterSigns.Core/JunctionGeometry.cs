@@ -135,8 +135,8 @@ public static class JunctionGeometry
     {
         var dx=x-element.X;
         var dy=y-element.Y;
-        var r=element.Junction is null ? 0 : RadiusAtAngle(element.Junction,arm.AngleDegrees);
         arm.AngleDegrees=(Math.Atan2(dx,-dy)*180/Math.PI+360)%360;
+        var r=element.Junction is null ? 0 : RadiusAtAngle(element.Junction,arm.AngleDegrees);
         arm.LengthMm=Math.Max(1,Math.Sqrt(dx*dx+dy*dy)-r);
     }
 
