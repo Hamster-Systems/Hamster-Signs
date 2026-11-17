@@ -77,8 +77,8 @@ public static class DirectionSignLayout
 
     private static SignElement Text(string value,double x,double y,double size,string? color=null) =>
         new() {Kind=ElementKind.Text,Text=value,X=x,Y=y,FontSizeMm=size,TextColor=color};
-    private static SignElement Line(double x,double y,double x2,double y2,double sw) =>
-        new() {Kind=ElementKind.Line,X=x,Y=y,X2=x2,Y2=y2,StrokeWidthMm=sw};
+    private static SignElement Line(double x,double y,double x2,double y2,double sw,string color) =>
+        new() {Kind=ElementKind.Line,X=x,Y=y,X2=x2,Y2=y2,StrokeWidthMm=sw,Stroke=color};
 
     public static SignDocument Build(DirectionSignSpecification spec,string title="Direction sign",string drawingNumber="HS-001")
     {
@@ -136,19 +136,19 @@ public static class DirectionSignLayout
             switch(row.Arrow)
             {
                 case DirectionArrow.Ahead:
-                    doc.Elements.Add(Line(tip,mid+arrowSize*.35,tip,mid-arrowSize*.35,arrowStroke));
-                    doc.Elements.Add(Line(tip,mid-arrowSize*.35,tip-arrowSize*.25,mid-arrowSize*.08,arrowStroke));
-                    doc.Elements.Add(Line(tip,mid-arrowSize*.35,tip+arrowSize*.25,mid-arrowSize*.08,arrowStroke));
+                    doc.Elements.Add(Line(tip,mid+arrowSize*.35,tip,mid-arrowSize*.35,arrowStroke,foreground));
+                    doc.Elements.Add(Line(tip,mid-arrowSize*.35,tip-arrowSize*.25,mid-arrowSize*.08,arrowStroke,foreground));
+                    doc.Elements.Add(Line(tip,mid-arrowSize*.35,tip+arrowSize*.25,mid-arrowSize*.08,arrowStroke,foreground));
                     break;
                 case DirectionArrow.Left:
-                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip-arrowSize*.36,mid,arrowStroke));
-                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip-arrowSize*.07,mid-arrowSize*.26,arrowStroke));
-                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip-arrowSize*.07,mid+arrowSize*.26,arrowStroke));
+                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip-arrowSize*.36,mid,arrowStroke,foreground));
+                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip-arrowSize*.07,mid-arrowSize*.26,arrowStroke,foreground));
+                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip-arrowSize*.07,mid+arrowSize*.26,arrowStroke,foreground));
                     break;
                 case DirectionArrow.Right:
-                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip+arrowSize*.36,mid,arrowStroke));
-                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip+arrowSize*.07,mid-arrowSize*.26,arrowStroke));
-                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip+arrowSize*.07,mid+arrowSize*.26,arrowStroke));
+                    doc.Elements.Add(Line(tip-arrowSize*.36,mid,tip+arrowSize*.36,mid,arrowStroke,foreground));
+                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip+arrowSize*.07,mid-arrowSize*.26,arrowStroke,foreground));
+                    doc.Elements.Add(Line(tip+arrowSize*.36,mid,tip+arrowSize*.07,mid+arrowSize*.26,arrowStroke,foreground));
                     break;
             }
 
