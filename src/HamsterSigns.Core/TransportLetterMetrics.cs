@@ -29,7 +29,7 @@ public static class TransportLetterMetrics
     private static readonly IReadOnlyDictionary<char,double> MediumLowercase =
         "abcdefghijklmnopqrstuvwxyz"
         .Zip(new double[] {
-            4.44,4.68,4.12,4.76,4.36,3.00,4.56,4.48,2.16,2.32,4.32,2.48,
+            4.44,4.88,4.12,4.76,4.36,3.00,4.56,4.48,2.16,2.32,4.32,2.48,
             6.56,4.48,4.72,4.72,4.72,3.20,3.88,3.24,4.60,3.92,5.88,4.16,3.92,3.88
         }).ToDictionary(pair=>pair.First,pair=>pair.Second);
 
@@ -37,7 +37,7 @@ public static class TransportLetterMetrics
         new Dictionary<char,double> {
             ['(']=4.20, [')']=4.20, ['&']=5.04, ['?']=5.52,
             ['.']=2.12, [':']=2.12, [';']=2.12, [',']=2.60,
-            ['!']=1.56, ['-']=2.64, ['\'']=3.40, ['"']=3.68,
+            ['!']=1.56, ['-']=2.64, ['\'']=1.56, ['"']=3.68,
             ['/']=3.12, ['*']=3.12
         };
 
