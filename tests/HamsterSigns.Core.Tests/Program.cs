@@ -465,4 +465,16 @@ var restoredJunction=linkedHistory.Document.Elements.Single(e=>e.Kind==ElementKi
 Check(JunctionGeometry.Endpoint(restoredJunction,
     restoredJunction.Junction!.Arms.Single(a=>a.Id==selectedHistoryRow.LinkedMapArmId))==oldEndpoint,
     "Undo also restores the associated road endpoint");
+Check(MapRoadClearance.SegmentTouchesRect(
+    (-50d,50d),(150d,50d),0,0,100,100),
+    "Continuous segment intersection catches crossing between sample points");
+Check(!MapRoadClearance.SegmentTouchesRect(
+    (-50d,150d),(150d,150d),0,0,100,100),
+    "Continuous clearance rejects nonintersecting parallel segments");
+Check(MapRoadClearance.SegmentTouchesRect(
+    (0d,0d),(100d,100d),100,100,150,150),
+    "Continuous segment test retains edge contact");
+Check(!MapRoadClearance.SegmentTouchesRect(
+    (double.NaN,0d),(20d,20d),0,0,10,10),
+    "Non-finite segment input cannot create false clearance result");
 Console.WriteLine("All tests passed.");
