@@ -5,6 +5,7 @@ namespace HamsterSigns.Core;
 
 public enum SignColour { PrimaryGreen, MotorwayBlue, NonPrimaryWhite, TouristBrown, TemporaryYellow }
 public enum ElementKind { Text, Panel, Line, Ellipse, CubicBezier, Junction }
+public enum SignFontRole { Automatic, TransportMedium, TransportHeavy, MotorwayPermanent }
 
 public sealed class SignDocument
 {
@@ -50,6 +51,7 @@ public sealed class SignElement
     public double FontSizeMm { get; set; } = 100;
     public string Fill { get; set; } = "none";
     public string? TextColor { get; set; }
+    public SignFontRole FontRole { get; set; } = SignFontRole.Automatic;
     public string Stroke { get; set; } = "#ffffff";
     public double StrokeWidthMm { get; set; } = 5;
     public JunctionDiagram? Junction { get; set; }
