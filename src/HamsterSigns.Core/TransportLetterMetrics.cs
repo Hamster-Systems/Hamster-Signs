@@ -2,7 +2,7 @@ namespace HamsterSigns.Core;
 
 /// <summary>
 /// UK sign lettering tile calculations in stroke-width units.
-/// Transport Medium capitals from DfT Schedule 17 working drawing TM1.
+/// Transport Medium tile widths from DfT Schedule 17 TM1, TM2 and TM3.
 /// Other glyphs are intentionally marked approximate until the relevant
 /// working drawing is transcribed and checked. This is NOT a font renderer.
 /// </summary>
@@ -24,6 +24,29 @@ public static class TransportLetterMetrics
             5.44,5.88,5.92,6.16,5.28,4.76,6.20,6.40,2.92,3.72,5.52,4.28,
             7.36,6.72,6.24,5.20,6.32,5.64,5.48,4.36,6.16,5.20,7.32,5.12,4.92,4.76
         }).ToDictionary(pair=>pair.First,pair=>pair.Second);
+
+    // DfT Schedule 17 TM2: lowercase characters and punctuation (sw).
+    private static readonly IReadOnlyDictionary<char,double> MediumLowercase =
+        "abcdefghijklmnopqrstuvwxyz"
+        .Zip(new double[] {
+            4.44,4.68,4.12,4.76,4.36,3.00,4.56,4.48,2.16,2.32,4.32,2.48,
+            6.56,4.48,4.72,4.72,4.72,3.20,3.88,3.24,4.60,3.92,5.88,4.16,3.92,3.88
+        }).ToDictionary(pair=>pair.First,pair=>pair.Second);
+
+    private static readonly IReadOnlyDictionary<char,double> MediumPunctuation =
+        new Dictionary<char,double> {
+            ['(']=4.20, [')']=4.20, ['&']=5.04, ['?']=5.52,
+            ['.']=2.12, [':']=2.12, [';']=2.12, [',']=2.60,
+            ['!']=1.56, ['-']=2.64, ['\\'']=3.40, ['"']=3.68,
+            ['/']=3.12, ['*']=3.12
+        };
+
+    // DfT Schedule 17 TM3: numeral tiles (sw). Special fraction
+    // characters require their own named tile handling in a future pass.
+    private static readonly IReadOnlyDictionary<char,double> MediumDigits =
+        "1234567890"
+        .Zip(new double[] {3.16,4.80,5.08,5.28,4.88,5.04,4.16,5.20,5.12,5.32})
+        .ToDictionary(pair=>pair.First,pair=>pair.Second);
 
     public static double StrokeWidth(double xHeightMm)
     {
@@ -61,6 +84,13 @@ public static class TransportLetterMetrics
                 // TM1 note 5: adjust tile overlap for T,V,Y preceding a,e,g,o,r,u.
                 if(i+1<text.Length && "aegoru".Contains(text[i+1]))
                     value-=ch switch { 'T'=>0.44, 'V'=>0.68, 'Y'=>0.48, _=>0 };
+                units+=value;continue;
+            }
+            if(alphabet==TransportAlphabet.Medium && (
+                MediumLowercase.TryGetValue(ch,out value) ||
+                MediumPunctuation.TryGetValue(ch,out value) ||
+                MediumDigits.TryGetValue(ch,out value)))
+            {
                 units+=value;continue;
             }
             // Conservative fallback only. Not a verified tile-width table.
