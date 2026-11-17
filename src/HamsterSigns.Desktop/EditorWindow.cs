@@ -24,6 +24,7 @@ public sealed class EditorWindow : Window
     private readonly TextBox textEditor = new() { Watermark="Selected text" };
     private readonly CheckBox moveMapGroups = new() { Content="Move linked map legends together",IsChecked=true };
     private readonly CheckBox protectMapClearance = new() { Content="Block legend overlaps and road collisions",IsChecked=true };
+    private readonly CheckBox autoRouteMapArms = new() { Content="Auto-route linked road when moving destination",IsChecked=true };
     private IReadOnlyDictionary<Guid,(double X,double Y)> groupOrigins =
         new Dictionary<Guid,(double X,double Y)>();
     private readonly TextBlock linkedRoadInfo = new() {
@@ -109,6 +110,8 @@ public sealed class EditorWindow : Window
         tools.Children.Add(linkedRoadInfo);
         tools.Children.Add(moveMapGroups);
         tools.Children.Add(protectMapClearance);
+        tools.Children.Add(autoRouteMapArms);
+        tools.Children.Add(Button("Auto-route selected destination", AutoRouteSelectedDestination));
         tools.Children.Add(Button("Add junction arm", AddJunctionArm));
         tools.Children.Add(Button("Remove last arm", RemoveJunctionArm));
         tools.Children.Add(Button("Add bend to selected arm", AddArmBend));
@@ -350,6 +353,20 @@ public sealed class EditorWindow : Window
     private void RemoveArmBend() => EditSelectedArm(a=> { if(a.Bends.Count>0) a.Bends.RemoveAt(a.Bends.Count-1); });
     private void ToggleArmSmooth() => EditSelectedArm(a=>a.Smooth=!a.Smooth);
     private void ToggleArmArrow() => EditSelectedArm(a=>a.ShowArrow=!a.ShowArrow);
+    private void AutoRouteSelectedDestination()
+    {
+        if(selectedId is not Guid id) {status.Text="Select a map destination first.";return;}
+        var origins=MapLegendGroups.Origins(Document,id);
+        if(origins.Count==0) {status.Text="Select a map destination or route patch first.";return;}
+        MapAutoRouter.Result? result=null;
+        editor.Edit(d=>result=MapAutoRouter.MoveLinkedLegend(d,id,origins,0,0,
+            protectMapClearance.IsChecked==true));
+        status.Text=result?.Message ?? "No auto-routing change.";
+        typographyWarningText.Text=Document.DirectionDesign is null ? ""
+            : string.Join("\n",DirectionSignLayout.TypographyWarnings(Document.DirectionDesign)
+                .Concat(MapSignLayout.Audit(Document)));
+        Draw();
+    }
     private void Delete()
     {
         if(selectedId is null) return;
@@ -491,7 +508,13 @@ public sealed class EditorWindow : Window
         {
             var snappedX=SignEditorSession.Snap(originX+dx,Grid);
             var snappedY=SignEditorSession.Snap(originY+dy,Grid);
-            if(!MapLegendGroups.MoveFromOrigins(Document,groupOrigins,
+            if(autoRouteMapArms.IsChecked==true && selectedId is Guid groupId)
+            {
+                var result=MapAutoRouter.MoveLinkedLegend(Document,groupId,groupOrigins,
+                    snappedX-originX,snappedY-originY,protectMapClearance.IsChecked==true);
+                if(!result.Success) status.Text=result.Message;
+            }
+            else if(!MapLegendGroups.MoveFromOrigins(Document,groupOrigins,
                 snappedX-originX,snappedY-originY,protectMapClearance.IsChecked==true))
                 status.Text="Move blocked: group would leave sign or overlap a legend/road.";
         }
