@@ -365,4 +365,52 @@ var orphaned=SignFile.Deserialize(SignFile.Serialize(mapZones));
 orphaned.DirectionDesign!.Destinations[0].LinkedMapArmId=Guid.NewGuid();
 Check(MapSignLayout.Audit(orphaned).Any(w=>w.Contains("no matching road arm")),
     "Map audit flags broken destination-to-arm links");
+// v0.12 map legend groups and sampled road/label clearance.
+var groupMap=SignFile.Deserialize(SignFile.Serialize(mapZones));
+var groupedRow=groupMap.DirectionDesign!.Destinations.Single(d=>d.Place=="The SOUTH");
+Check(groupedRow.MapPlaceElementId.HasValue && groupedRow.MapRouteElementId.HasValue &&
+      groupedRow.MapPatchElementId.HasValue,"Map destination retains group component IDs");
+var linkedParts=MapLegendGroups.Resolve(groupMap,groupedRow.MapPatchElementId!.Value);
+Check(linkedParts.Count==3,"Selecting route patch resolves whole destination group");
+var startPositions=MapLegendGroups.Origins(groupMap,groupedRow.MapPlaceElementId!.Value);
+Check(startPositions.Count==3,"Position snapshots include place route and patch");
+Check(MapLegendGroups.MoveFromOrigins(groupMap,startPositions,15,20,false),
+      "Linked map group moves all component positions");
+Check(linkedParts.All(e=>Math.Abs(e.X-startPositions[e.Id].X-15)<0.00001 &&
+      Math.Abs(e.Y-startPositions[e.Id].Y-20)<0.00001),
+      "All group components keep their relative alignment");
+Check(!MapLegendGroups.MoveFromOrigins(groupMap,startPositions,-100000,0),
+      "Group movement is blocked outside the sign bounds");
+Check(linkedParts.All(e=>e.X>=0),"Rejected group movement restores existing positions");
+var clearanceMap=SignFile.Deserialize(SignFile.Serialize(mapZones));
+Check(MapRoadClearance.Audit(clearanceMap).Count==0,
+      "Generated example starts with road-to-legend clearance");
+var centreRoad=clearanceMap.Elements.Single(e=>e.Kind==ElementKind.Junction);
+var collisionRow=clearanceMap.DirectionDesign!.Destinations.First();
+var collisionText=clearanceMap.Elements.Single(e=>e.Id==collisionRow.MapPlaceElementId);
+collisionText.X=centreRoad.X;
+collisionText.Y=centreRoad.Y;
+Check(MapRoadClearance.Audit(clearanceMap).Any(s=>s.Contains("Road-to-legend")),
+      "Collision check catches legend placed over the incoming road");
+var blockedMap=SignFile.Deserialize(SignFile.Serialize(mapZones));
+var firstGroup=blockedMap.DirectionDesign!.Destinations.First();
+var groupStart=MapLegendGroups.Origins(blockedMap,firstGroup.MapPlaceElementId!.Value);
+var original=blockedMap.Elements.Single(e=>e.Id==firstGroup.MapPlaceElementId);
+var blockedX=blockedMap.Elements.Single(e=>e.Kind==ElementKind.Junction).X-original.X;
+var blockedY=blockedMap.Elements.Single(e=>e.Kind==ElementKind.Junction).Y-original.Y;
+Check(!MapLegendGroups.MoveFromOrigins(blockedMap,groupStart,blockedX,blockedY,true),
+      "Collision-protected move rejects a legend placed over a road");
+Check(Math.Abs(original.X-groupStart[original.Id].X)<0.00001,
+      "Rejected move restores the original label coordinates");
+var groupHistory=new SignEditorSession(SignFile.Deserialize(SignFile.Serialize(mapZones)));
+var historyRow=groupHistory.Document.DirectionDesign!.Destinations.First();
+var historyStart=MapLegendGroups.Origins(groupHistory.Document,historyRow.MapPlaceElementId!.Value);
+groupHistory.Edit(d=> {
+    if(!MapLegendGroups.MoveFromOrigins(d,historyStart,5,5,false))
+        throw new InvalidOperationException("Expected legend move to succeed.");
+});
+Check(groupHistory.Undo() &&
+      groupHistory.Document.Elements.Single(e=>e.Id==historyRow.MapPlaceElementId).X==
+      historyStart[historyRow.MapPlaceElementId!.Value].X,
+      "One undo restores the complete destination group");
 Console.WriteLine("All tests passed.");
