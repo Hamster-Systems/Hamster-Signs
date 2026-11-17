@@ -28,11 +28,13 @@ public static class SignValidator
             result.Add(new("SIZE", "Sign dimensions must be finite positive millimetre values.", true));
         foreach (var e in doc.Elements)
         {
-            double[] values = [e.X, e.Y, e.X2, e.Y2, e.Control1X, e.Control1Y, e.Control2X, e.Control2Y, e.Width, e.Height, e.FontSizeMm, e.StrokeWidthMm];
+            double[] values = [e.X, e.Y, e.X2, e.Y2, e.Control1X, e.Control1Y, e.Control2X, e.Control2Y, e.Width, e.Height, e.FontSizeMm, e.StrokeWidthMm, e.CornerRadiusMm];
             if (values.Any(v => !double.IsFinite(v)))
                 result.Add(new("COORD", $"Element {e.Id} contains a non-finite value.", true));
             if (e.Kind == ElementKind.Text && (e.FontSizeMm <= 0 || string.IsNullOrWhiteSpace(e.Text)))
                 result.Add(new("TEXT", $"Text element {e.Id} has invalid content.", true));
+            if (e.Kind==ElementKind.Panel && (e.CornerRadiusMm<0 || e.CornerRadiusMm>Math.Min(e.Width,e.Height)/2))
+                result.Add(new("RADIUS", $"Panel {e.Id} has an invalid corner radius.", true));
             if (e.Kind is ElementKind.Panel or ElementKind.Ellipse && (e.Width <= 0 || e.Height <= 0))
                 result.Add(new("GEOMETRY", $"Shape {e.Id} has invalid dimensions.", true));
             if (e.Kind==ElementKind.Text && e.TextColor is not null && !System.Text.RegularExpressions.Regex.IsMatch(e.TextColor, "^#[0-9a-fA-F]{6}$"))
@@ -73,7 +75,7 @@ public static class SvgExporter
                         b.AppendLine($"<text x=\"{F(e.X)}\" y=\"{F(e.Y+e.FontSizeMm)}\" fill=\"{E(e.TextColor ?? SignPalette.Foreground(doc.Background))}\" font-family=\"sans-serif\" font-size=\"{F(e.FontSizeMm)}\">{E(e.Text)}</text>");
                     break;
                 case ElementKind.Panel:
-                    b.AppendLine($"<rect x=\"{F(e.X)}\" y=\"{F(e.Y)}\" width=\"{F(e.Width)}\" height=\"{F(e.Height)}\" fill=\"{E(e.Fill)}\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
+                    b.AppendLine($"<rect x=\"{F(e.X)}\" y=\"{F(e.Y)}\" width=\"{F(e.Width)}\" height=\"{F(e.Height)}\" rx=\"{F(e.CornerRadiusMm)}\" ry=\"{F(e.CornerRadiusMm)}\" fill=\"{E(e.Fill)}\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
                     break;
                 case ElementKind.Ellipse:
                     b.AppendLine($"<ellipse cx=\"{F(e.X+e.Width/2)}\" cy=\"{F(e.Y+e.Height/2)}\" rx=\"{F(e.Width/2)}\" ry=\"{F(e.Height/2)}\" fill=\"{E(e.Fill)}\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
