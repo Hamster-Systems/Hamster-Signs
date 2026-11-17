@@ -76,6 +76,9 @@ public static class SvgExporter
                     break;
                 case ElementKind.Junction:
                     b.AppendLine($"<path d=\"{JunctionGeometry.PathData(e)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>");
+                    var arrows=JunctionGeometry.ArrowPathData(e);
+                    if(arrows.Length>0)
+                        b.AppendLine($"<path d=\"{arrows}\" fill=\"{E(e.Stroke)}\" stroke=\"none\"/>");
                     break;
             }
         }
