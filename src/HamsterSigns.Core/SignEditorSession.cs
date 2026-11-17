@@ -69,7 +69,12 @@ public sealed class SignEditorSession
     {
         var dx = Snap(x, grid) - originX;
         var dy = Snap(y, grid) - originY;
-        if (element.Kind == ElementKind.Line) { element.X2 += dx; element.Y2 += dy; }
+        if (element.Kind is ElementKind.Line or ElementKind.CubicBezier) { element.X2 += dx; element.Y2 += dy; }
+        if (element.Kind == ElementKind.CubicBezier)
+        {
+            element.Control1X += dx; element.Control1Y += dy;
+            element.Control2X += dx; element.Control2Y += dy;
+        }
         element.X += dx;
         element.Y += dy;
     }
