@@ -149,8 +149,8 @@ public static class DirectionSignLayout
             // Symbol centres are offset upwards by 0.5 sw (Chapter 7, 3.5.1).
             var symbolMiddle=middle-sw*.5;
             var tip=left+arrowSlot/2;
-            var arrowSize=4*sw;
-            var arrowStroke=Math.Max(5,sw*.45);
+            var arrowSize=5.5*sw;
+            var arrowStroke=Math.Max(5,sw*.7);
             switch(row.Arrow)
             {
                 case DirectionArrow.Ahead:
