@@ -22,6 +22,10 @@ public sealed class EditorWindow : Window
     private readonly CheckBox gridEnabled = new() { Content="Snap to grid", IsChecked=true };
     private readonly ComboBox colour = new() { ItemsSource=Enum.GetValues<SignColour>() };
     private readonly TextBox textEditor = new() { Watermark="Selected text" };
+    private readonly TextBlock linkedRoadInfo = new() {
+        Text="Select an orange road endpoint to inspect its linked destination.",
+        TextWrapping=TextWrapping.Wrap, FontSize=11
+    };
     private readonly FontOutlineRenderer fontRenderer = new();
     private readonly TextBlock fontStatus = new() { Text="No local font files loaded.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox directionXHeight = new() { Text="100", Watermark="x-height (mm)" };
@@ -98,6 +102,7 @@ public sealed class EditorWindow : Window
         tools.Children.Add(Button("T-junction", () => Add(JunctionGeometry.TJunction(1100,1000))));
         tools.Children.Add(Button("Irregular roundabout", () => Add(JunctionGeometry.IrregularRoundabout(1100,1000))));
         tools.Children.Add(Button("Crossroads", () => Add(JunctionGeometry.Crossroads(1100,1000))));
+        tools.Children.Add(linkedRoadInfo);
         tools.Children.Add(Button("Add junction arm", AddJunctionArm));
         tools.Children.Add(Button("Remove last arm", RemoveJunctionArm));
         tools.Children.Add(Button("Add bend to selected arm", AddArmBend));
@@ -381,7 +386,10 @@ public sealed class EditorWindow : Window
     {
         if(Document.WidthMm<=0 || Document.HeightMm<=0) return;
         baseScale=Math.Min(1040/Document.WidthMm,740/Document.HeightMm);
-        zoom=1; offsetX=45; offsetY=45; Draw();
+        zoom=1;
+        offsetX=Math.Max(0,(canvas.Width-Document.WidthMm*Scale)/2);
+        offsetY=Math.Max(0,(canvas.Height-Document.HeightMm*Scale)/2);
+        Draw();
     }
     private double Scale => baseScale*zoom;
     private void Zoom(double factor, Point pivot)
@@ -430,6 +438,11 @@ public sealed class EditorWindow : Window
             if(handle>=100 && handle<200)
             {
                 selectedArmIndex=handle-100;
+                var armId=element.Junction.Arms[selectedArmIndex].Id;
+                var destination=Document.DirectionDesign?.Destinations.FirstOrDefault(d=>d.LinkedMapArmId==armId);
+                linkedRoadInfo.Text=destination is null
+                    ? $"Road arm {selectedArmIndex+1}: unassigned (incoming / freehand)."
+                    : $"Road arm {selectedArmIndex+1} → {destination.Place} ({destination.Route}), {destination.Arrow}.";
                 var endpoint=JunctionGeometry.Endpoint(element,element.Junction.Arms[selectedArmIndex]);
                 originHandleX=endpoint.X; originHandleY=endpoint.Y;
             }
