@@ -244,4 +244,47 @@ var invalidRadius=new SignDocument { Elements=[new SignElement {
 }]};
 Check(SignValidator.Check(invalidRadius).Any(d=>d.Code=="RADIUS" && d.IsError),
       "Invalid panel corner radii rejected");
+// v0.10 template library and portable vector drafting symbols.
+var sourceSpec=DirectionSignLayout.Example();
+var stackTemplate=SignTemplateCatalog.Build(SignTemplateKind.StackAdvance,sourceSpec);
+Check(stackTemplate.Template==SignTemplateKind.StackAdvance,"Stack template records its type");
+Check(stackTemplate.DirectionDesign!.Destinations.Count==3,"Template retains structured destinations");
+var mapTemplate=SignTemplateCatalog.Build(SignTemplateKind.MapAdvance,sourceSpec);
+Check(mapTemplate.WidthMm>stackTemplate.WidthMm,"Map template reserves a diagram column");
+Check(mapTemplate.Elements.Any(e=>e.Kind==ElementKind.Junction),"Map template includes an editable junction");
+Check(!mapTemplate.Elements.Any(e=>e.Kind==ElementKind.Line),"Map preset replaces row arrows with junction diagram");
+var mapText=mapTemplate.Elements.First(e=>e.Kind==ElementKind.Text && e.Text=="Kendal");
+var stackText=stackTemplate.Elements.First(e=>e.Kind==ElementKind.Text && e.Text=="Kendal");
+Check(mapText.X>stackText.X,"Map template shifts legend and route columns");
+Check(sourceSpec.Background==SignColour.PrimaryGreen,"Template generation does not mutate caller's specification");
+var motorwayTemplate=SignTemplateCatalog.Build(SignTemplateKind.MotorwayMap,sourceSpec);
+Check(motorwayTemplate.Background==SignColour.MotorwayBlue,"Motorway template uses blue background");
+Check(motorwayTemplate.Elements.Any(e=>e.Kind==ElementKind.Junction),"Motorway template provides map diagram");
+var templateSaved=SignFile.Deserialize(SignFile.Serialize(motorwayTemplate));
+Check(templateSaved.Template==SignTemplateKind.MotorwayMap &&
+      templateSaved.Elements.Any(e=>e.Kind==ElementKind.Junction),"Template and map geometry survive project save");
+var changedTemplate=new SignEditorSession(stackTemplate);
+changedTemplate.Edit(d=>{
+    var replacement=SignTemplateCatalog.Build(SignTemplateKind.MapAdvance,sourceSpec);
+    d.Elements=replacement.Elements;d.WidthMm=replacement.WidthMm;d.Template=replacement.Template;
+});
+Check(changedTemplate.Undo() && changedTemplate.Document.Template==SignTemplateKind.StackAdvance,
+      "Template replacement can be undone");
+var symbolKinds=Enum.GetValues<SignSymbolKind>();
+Check(symbolKinds.Length==5,"Initial drafting symbol palette contains five entries");
+foreach(var kind in symbolKinds)
+{
+    var symbol=SignSymbolLibrary.Create(kind,50,80,175);
+    var symbolDocument=new SignDocument { Elements=[symbol] };
+    Check(SignValidator.Check(symbolDocument).All(d=>!d.IsError),$"{kind} symbol validates");
+    var symbolSvg=SvgExporter.Export(symbolDocument);
+    Check(symbolSvg.Contains("transform=") && symbolSvg.Contains("<path"),
+          $"{kind} symbol exports as a transformed SVG path");
+    var symbolCopy=SignFile.Deserialize(SignFile.Serialize(symbolDocument));
+    Check(symbolCopy.Elements[0].SymbolKind==kind,$"{kind} symbol survives JSON roundtrip");
+}
+Check(SignValidator.Check(new SignDocument {
+    Elements=[new SignElement {Kind=ElementKind.Symbol,Width=-1,Height=200}]
+}).Any(d=>d.Code=="SYMBOL" && d.IsError),"Invalid symbol sizing rejected");
+Check(SvgExporter.Export(mapTemplate).Contains("<path"),"Map template exports vector diagram");
 Console.WriteLine("All tests passed.");
