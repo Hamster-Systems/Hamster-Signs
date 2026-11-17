@@ -6,6 +6,7 @@ namespace HamsterSigns.Core;
 public enum SignColour { PrimaryGreen, MotorwayBlue, NonPrimaryWhite, TouristBrown, TemporaryYellow }
 public enum ElementKind { Text, Panel, Line, Ellipse, CubicBezier, Junction, Symbol }
 public enum SignFontRole { Automatic, TransportMedium, TransportHeavy, MotorwayPermanent }
+public enum SignTemplateKind { Freeform, StackAdvance, MapAdvance, MotorwayMap }
 
 public sealed class SignDocument
 {
@@ -17,6 +18,7 @@ public sealed class SignDocument
     public SignColour Background { get; set; } = SignColour.PrimaryGreen;
     public List<SignElement> Elements { get; set; } = [];
     public DirectionSignSpecification? DirectionDesign { get; set; }
+    public SignTemplateKind Template { get; set; } = SignTemplateKind.Freeform;
 
     public static SignDocument Example() => new()
     {
