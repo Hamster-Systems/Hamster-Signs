@@ -25,6 +25,8 @@ public sealed class EditorWindow : Window
     private readonly FontOutlineRenderer fontRenderer = new();
     private readonly TextBlock fontStatus = new() { Text="No local font files loaded.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox directionXHeight = new() { Text="100", Watermark="x-height (mm)" };
+    private readonly ComboBox signTemplate = new() { ItemsSource=SignTemplateCatalog.Available, SelectedItem=SignTemplateKind.StackAdvance };
+    private readonly ComboBox symbolPicker = new() { ItemsSource=Enum.GetValues<SignSymbolKind>(), SelectedItem=SignSymbolKind.Parking };
     private readonly CheckBox roundSignDimensions = new() { Content="Round overall dimensions (Chapter 7 section 2.6)", IsChecked=true };
     private readonly TextBlock typographyWarningText = new() { Text="No layout audit yet.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox destinationsInput = new() {
@@ -63,6 +65,8 @@ public sealed class EditorWindow : Window
             TextWrapping=TextWrapping.Wrap
         });
         destinationsInput.Text="Kendal | A6 | ahead | none\nLancaster | A591 | left | none\nThe SOUTH | (M6) | right | motorway";
+        tools.Children.Add(new TextBlock { Text="Template" });
+        tools.Children.Add(signTemplate);
         tools.Children.Add(directionXHeight);
         tools.Children.Add(roundSignDimensions);
         tools.Children.Add(destinationsInput);
@@ -83,6 +87,9 @@ public sealed class EditorWindow : Window
         });
         tools.Children.Add(new Separator());
         tools.Children.Add(new TextBlock { Text="Drawing", FontWeight=FontWeight.SemiBold });
+        tools.Children.Add(new TextBlock { Text="Editable symbol library (illustrative)" });
+        tools.Children.Add(symbolPicker);
+        tools.Children.Add(Button("Insert selected symbol", InsertSymbol));
         tools.Children.Add(Button("Add text", () => Add(new() { Kind=ElementKind.Text, X=300, Y=250, Text="Destination", FontSizeMm=135 })));
         tools.Children.Add(Button("Add panel", () => Add(new() { Kind=ElementKind.Panel, X=300, Y=350, Width=400, Height=175, Fill="#174c9a" })));
         tools.Children.Add(Button("Add line", () => Add(new() { Kind=ElementKind.Line, X=200, Y=500, X2=900, Y2=500, StrokeWidthMm=55 })));
@@ -203,6 +210,14 @@ public sealed class EditorWindow : Window
             Foreground=Brush(element.TextColor ?? SignPalette.Foreground(Document.Background))
         };
     }
+    private void InsertSymbol()
+    {
+        if(symbolPicker.SelectedItem is not SignSymbolKind kind) return;
+        var size=2.5*ReadNumber(directionXHeight.Text,100);
+        Add(SignSymbolLibrary.Create(kind,Document.WidthMm/2,Document.HeightMm/2,size,
+            SignPalette.Foreground(Document.Background)));
+    }
+
     private void GenerateDirectionSign()
     {
         if(!double.TryParse(directionXHeight.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var xHeight))
@@ -229,13 +244,15 @@ public sealed class EditorWindow : Window
         };
         try
         {
-            var generated=DirectionSignLayout.Build(spec,title.Text ?? "Direction sign",Document.DrawingNumber);
+            var template=signTemplate.SelectedItem is SignTemplateKind chosen ? chosen : SignTemplateKind.StackAdvance;
+            var generated=SignTemplateCatalog.Build(template,spec,title.Text ?? "Direction sign",Document.DrawingNumber);
             editor.Edit(d =>
             {
                 d.Elements=generated.Elements;
                 d.DirectionDesign=generated.DirectionDesign;
                 d.WidthMm=generated.WidthMm; d.HeightMm=generated.HeightMm;
                 d.Background=generated.Background; d.Title=generated.Title;
+                d.Template=generated.Template;
             });
             selectedId=null;
             SynchronizeProperties();
@@ -251,6 +268,7 @@ public sealed class EditorWindow : Window
         var spec=Document.DirectionDesign;
         if(spec is null) return;
         directionXHeight.Text=Format(spec.XHeightMm);
+        if(Document.Template!=SignTemplateKind.Freeform) signTemplate.SelectedItem=Document.Template;
         roundSignDimensions.IsChecked=spec.RoundDimensions;
         destinationsInput.Text=string.Join("\n",spec.Destinations.Select(d=>
             $"{d.Place} | {d.Route} | {d.Arrow.ToString().ToLowerInvariant()} | {d.RouteStyle.ToString().ToLowerInvariant()}"));
@@ -651,6 +669,12 @@ public sealed class EditorWindow : Window
             Control? visual=element.Kind switch
             {
                 ElementKind.Text => TextVisual(element,s),
+                ElementKind.Symbol => new Avalonia.Controls.Shapes.Path {
+                    Data=Geometry.Parse(SignSymbolLibrary.PathData(element)),
+                    Width=element.Width*s, Height=element.Height*s, Stretch=Stretch.Fill,
+                    Fill=Brushes.Transparent, Stroke=Brush(element.Stroke),
+                    StrokeThickness=Math.Max(2,s*4)
+                },
                 ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, RadiusX=element.CornerRadiusMm*s, RadiusY=element.CornerRadiusMm*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
                 ElementKind.Ellipse => new Ellipse { Width=element.Width*s, Height=element.Height*s, Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s, Fill=Brush(element.Fill) },
                 ElementKind.Line => new Line { StartPoint=new Point(0,0), EndPoint=new Point((element.X2-element.X)*s,(element.Y2-element.Y)*s), Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,2) },
