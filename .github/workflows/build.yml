@@ -21,3 +21,5 @@ jobs:
         run: dotnet build src/HamsterSigns.Desktop/HamsterSigns.Desktop.csproj --configuration Release
       - name: Run core tests
         run: dotnet run --project tests/HamsterSigns.Core.Tests/HamsterSigns.Core.Tests.csproj --configuration Release
+      - name: Run font-outline smoke tests
+        run: dotnet run --project tests/HamsterSigns.Font.Tests/HamsterSigns.Font.Tests.csproj --configuration Release
