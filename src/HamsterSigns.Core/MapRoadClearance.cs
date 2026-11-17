@@ -16,7 +16,10 @@ public static class MapRoadClearance
         var rows=document.DirectionDesign?.Destinations;
         if(rows is null) return [];
         var warnings=new List<string>();
-        var roadPoints=network.Junction.Arms.SelectMany(a=>SampleArm(network,a)).ToArray();
+        // Keep each arm as a polyline so crossings *between* sample points
+        // are detected, not just sample points inside a rectangle.
+        var roadPolylines=network.Junction.Arms
+            .Select(a=>SampleArm(network,a).ToArray()).ToList();
         var clearance=network.StrokeWidthMm/2+
             TransportLetterMetrics.StrokeWidth(rows.Count>0 ? document.DirectionDesign!.XHeightMm : 100);
         foreach(var element in document.Elements)
@@ -27,11 +30,49 @@ public static class MapRoadClearance
                 ? TransportLetterMetrics.Measure(element.Text,element.FontSizeMm).WidthMm : element.Width;
             double h=element.Kind==ElementKind.Text
                 ? TransportLetterMetrics.TileHeight(element.FontSizeMm) : element.Height;
-            if(roadPoints.Any(p=>p.X>=element.X-clearance && p.X<=element.X+w+clearance &&
-                p.Y>=element.Y-clearance && p.Y<=element.Y+h+clearance))
+            var left=element.X-clearance;
+            var top=element.Y-clearance;
+            var right=element.X+w+clearance;
+            var bottom=element.Y+h+clearance;
+            if(roadPolylines.Any(line=>
+                line.Length>0 && (
+                    (line.Length==1 && InRect(line[0],left,top,right,bottom)) ||
+                    Enumerable.Range(1,line.Length-1).Any(i=>
+                        SegmentTouchesRect(line[i-1],line[i],left,top,right,bottom)))))
                 warnings.Add($"Road-to-legend clearance: {element.Kind} {element.Id} may overlap a road centreline.");
         }
         return warnings;
+    }
+
+    private static bool InRect((double X,double Y) point,
+        double left,double top,double right,double bottom) =>
+        point.X>=left && point.X<=right && point.Y>=top && point.Y<=bottom;
+
+    /// <summary>Liang-Barsky exact segment versus expanded rectangle test.</summary>
+    public static bool SegmentTouchesRect((double X,double Y) start,(double X,double Y) end,
+        double left,double top,double right,double bottom)
+    {
+        if(!double.IsFinite(start.X) || !double.IsFinite(start.Y) ||
+           !double.IsFinite(end.X) || !double.IsFinite(end.Y) ||
+           !double.IsFinite(left) || !double.IsFinite(top) ||
+           !double.IsFinite(right) || !double.IsFinite(bottom) ||
+           left>right || top>bottom) return false;
+        var dx=end.X-start.X;
+        var dy=end.Y-start.Y;
+        var t0=0d;
+        var t1=1d;
+        static bool Clip(double p,double q,ref double near,ref double far)
+        {
+            if(Math.Abs(p)<1e-12) return q>=0;
+            var ratio=q/p;
+            if(p<0) near=Math.Max(near,ratio);
+            else far=Math.Min(far,ratio);
+            return near<=far;
+        }
+        return Clip(-dx,start.X-left,ref t0,ref t1) &&
+            Clip(dx,right-start.X,ref t0,ref t1) &&
+            Clip(-dy,start.Y-top,ref t0,ref t1) &&
+            Clip(dy,bottom-start.Y,ref t0,ref t1);
     }
 
     public static IEnumerable<(double X,double Y)> SampleArm(SignElement junction,JunctionArm arm)
