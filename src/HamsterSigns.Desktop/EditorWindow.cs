@@ -264,7 +264,7 @@ public sealed class EditorWindow : Window
             Fit();
             var typographyWarnings=DirectionSignLayout.TypographyWarnings(spec);
             status.Text=$"Generated sign; {typographyWarnings.Count} typography / standards warnings. See warning list in sidebar.";
-            typographyWarningText.Text=string.Join("\n",typographyWarnings);
+            typographyWarningText.Text=string.Join("\n",typographyWarnings.Concat(MapSignLayout.Audit(Document)));
         }
         catch(ArgumentException ex) {status.Text=ex.Message;}
     }
@@ -277,7 +277,7 @@ public sealed class EditorWindow : Window
         roundSignDimensions.IsChecked=spec.RoundDimensions;
         destinationsInput.Text=string.Join("\n",spec.Destinations.Select(d=>
             $"{d.Place} | {d.Route} | {d.Arrow.ToString().ToLowerInvariant()} | {d.RouteStyle.ToString().ToLowerInvariant()}"));
-        typographyWarningText.Text=string.Join("\n",DirectionSignLayout.TypographyWarnings(spec));
+        typographyWarningText.Text=string.Join("\n",DirectionSignLayout.TypographyWarnings(spec).Concat(MapSignLayout.Audit(Document)));
     }
     private void Add(SignElement element)
     {
