@@ -1,0 +1,23 @@
+name: Build and test
+on:
+  push:
+    branches:
+      - feat/roadsigncad-foundation
+  workflow_dispatch:
+
+jobs:
+  desktop-and-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build desktop
+        run: dotnet build src/HamsterSigns.Desktop/HamsterSigns.Desktop.csproj --configuration Release
+      - name: Run core tests
+        run: dotnet run --project tests/HamsterSigns.Core.Tests/HamsterSigns.Core.Tests.csproj --configuration Release
