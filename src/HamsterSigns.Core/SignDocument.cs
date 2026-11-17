@@ -15,6 +15,7 @@ public sealed class SignDocument
     public double HeightMm { get; set; } = 2095;
     public SignColour Background { get; set; } = SignColour.PrimaryGreen;
     public List<SignElement> Elements { get; set; } = [];
+    public DirectionSignSpecification? DirectionDesign { get; set; }
 
     public static SignDocument Example() => new()
     {
@@ -48,6 +49,7 @@ public sealed class SignElement
     public string Text { get; set; } = "Text";
     public double FontSizeMm { get; set; } = 100;
     public string Fill { get; set; } = "none";
+    public string? TextColor { get; set; }
     public string Stroke { get; set; } = "#ffffff";
     public double StrokeWidthMm { get; set; } = 5;
     public JunctionDiagram? Junction { get; set; }
