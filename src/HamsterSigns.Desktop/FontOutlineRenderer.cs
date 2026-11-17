@@ -48,7 +48,7 @@ public sealed class FontOutlineRenderer
         using var typeface=SKTypeface.FromFile(filePath)
             ?? throw new InvalidDataException("Unable to read the selected font.");
         using var font=new SKFont(typeface,100);
-        var xGlyph=font.GetGlyphs("x");
+        var xGlyph=typeface.GetGlyphs("x");
         if(xGlyph.Length==0 || xGlyph[0]==0)
             throw new InvalidDataException("Font has no lowercase 'x' for measuring x-height.");
         using var xPath=font.GetGlyphPath(xGlyph[0])
@@ -66,7 +66,7 @@ public sealed class FontOutlineRenderer
             var c=element.Text[i];
             if(char.IsSurrogate(c))
                 throw new InvalidDataException("Complex text shaping is not supported for supplementary Unicode characters.");
-            var ids=font.GetGlyphs(c.ToString());
+            var ids=typeface.GetGlyphs(c.ToString());
             if(ids.Length!=1 || ids[0]==0)
                 throw new InvalidDataException($"Selected font does not contain glyph U+{(int)c:X4}.");
             using var outline=font.GetGlyphPath(ids[0]);
