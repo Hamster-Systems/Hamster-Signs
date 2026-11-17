@@ -48,6 +48,14 @@ public sealed class EditorWindow : Window
         tools.Children.Add(Button("Add text", () => Add(new() { Kind=ElementKind.Text, X=300, Y=250, Text="Destination", FontSizeMm=135 })));
         tools.Children.Add(Button("Add panel", () => Add(new() { Kind=ElementKind.Panel, X=300, Y=350, Width=400, Height=175, Fill="#174c9a" })));
         tools.Children.Add(Button("Add line", () => Add(new() { Kind=ElementKind.Line, X=200, Y=500, X2=900, Y2=500, StrokeWidthMm=55 })));
+        tools.Children.Add(new TextBlock { Text="Junction constructor", FontWeight=FontWeight.SemiBold });
+        tools.Children.Add(Button("Roundabout (4 arms)", () => Add(JunctionGeometry.Roundabout(1100,1000,260))));
+        tools.Children.Add(Button("T-junction", () => Add(JunctionGeometry.TJunction(1100,1000))));
+        tools.Children.Add(Button("Crossroads", () => Add(JunctionGeometry.Crossroads(1100,1000))));
+        tools.Children.Add(Button("Add junction arm", AddJunctionArm));
+        tools.Children.Add(Button("Remove last arm", RemoveJunctionArm));
+        tools.Children.Add(Button("Increase roundabout radius", () => ChangeRadius(25)));
+        tools.Children.Add(Button("Decrease roundabout radius", () => ChangeRadius(-25)));
         tools.Children.Add(Button("Add curved road", () => Add(new() { Kind=ElementKind.CubicBezier, X=300, Y=500, Control1X=450, Control1Y=350, Control2X=700, Control2Y=750, X2=1000, Y2=570, StrokeWidthMm=65 })));
         tools.Children.Add(Button("Add circle / roundabout ring", () => Add(new() { Kind=ElementKind.Ellipse, X=300, Y=500, Width=520, Height=520, StrokeWidthMm=60 })));
         tools.Children.Add(Button("Delete selected", Delete));
@@ -112,6 +120,38 @@ public sealed class EditorWindow : Window
         editor.Edit(d=>d.Elements.Add(element));
         selectedId=element.Id;
         textEditor.Text=element.Kind==ElementKind.Text ? element.Text : "";
+        Draw();
+    }
+    private void AddJunctionArm()
+    {
+        var junction=Selected?.Junction;
+        if(junction is null || junction.Arms.Count>=16) return;
+        var id=selectedId;
+        editor.Edit(d=>
+        {
+            var j=d.Elements.First(e=>e.Id==id).Junction!;
+            j.Arms.Add(new JunctionArm { AngleDegrees=(j.Arms.Last().AngleDegrees+45)%360, LengthMm=450 });
+        });
+        Draw();
+    }
+    private void RemoveJunctionArm()
+    {
+        var junction=Selected?.Junction;
+        if(junction is null || junction.Arms.Count<=1) return;
+        var id=selectedId;
+        editor.Edit(d=>d.Elements.First(e=>e.Id==id).Junction!.Arms.RemoveAt(junction.Arms.Count-1));
+        Draw();
+    }
+    private void ChangeRadius(double delta)
+    {
+        var junction=Selected?.Junction;
+        if(junction is null || junction.Type!=JunctionType.Roundabout) return;
+        var id=selectedId;
+        editor.Edit(d=>
+        {
+            var j=d.Elements.First(e=>e.Id==id).Junction!;
+            j.RadiusMm=Math.Max(25,j.RadiusMm+delta);
+        });
         Draw();
     }
     private void Delete()
@@ -217,7 +257,15 @@ public sealed class EditorWindow : Window
         var element=Selected;
         if(element is null) return;
         double dx=(point.X-dragStart.X)/Scale, dy=(point.Y-dragStart.Y)/Scale;
-        if(element.Kind==ElementKind.CubicBezier && activeHandle!=0)
+        if(element.Kind==ElementKind.Junction && activeHandle>=100)
+        {
+            var index=activeHandle-100;
+            if(element.Junction is not null && index>=0 && index<element.Junction.Arms.Count)
+                JunctionGeometry.MoveEndpoint(element, element.Junction.Arms[index],
+                    SignEditorSession.Snap(originX+dx,Grid),
+                    SignEditorSession.Snap(originY+dy,Grid));
+        }
+        else if(element.Kind==ElementKind.CubicBezier && activeHandle!=0)
         {
             var x=SignEditorSession.Snap(dx+(activeHandle switch { 1=>originX, 2=>originC1X, 3=>originC2X, _=>originX2 }),Grid);
             var y=SignEditorSession.Snap(dy+(activeHandle switch { 1=>originY, 2=>originC1Y, 3=>originC2Y, _=>originY2 }),Grid);
@@ -302,6 +350,24 @@ public sealed class EditorWindow : Window
         }
         catch(Exception ex) { status.Text=$"Export failed: {ex.Message}"; }
     }
+    private void DrawJunctionHandles(SignElement element, double scale)
+    {
+        if(element.Junction is null) return;
+        foreach(var arm in element.Junction.Arms.Select((value,index)=>(value,index)))
+        {
+            var end=JunctionGeometry.Endpoint(element,arm.value);
+            var handle=new Ellipse { Width=14, Height=14, Fill=Brushes.Orange, Stroke=Brushes.White, StrokeThickness=2 };
+            Canvas.SetLeft(handle,offsetX+end.X*scale-7);
+            Canvas.SetTop(handle,offsetY+end.Y*scale-7);
+            var index=arm.index;
+            handle.PointerPressed+=(_,e)=>StartHandle(element,100+index,e);
+            canvas.Children.Add(handle);
+        }
+        var centre=new Ellipse { Width=10,Height=10,Fill=Brushes.White,Stroke=Brushes.Orange,StrokeThickness=2,IsHitTestVisible=false };
+        Canvas.SetLeft(centre,offsetX+element.X*scale-5);
+        Canvas.SetTop(centre,offsetY+element.Y*scale-5);
+        canvas.Children.Add(centre);
+    }
     private void DrawCurveHandles(SignElement element, double scale)
     {
         void Guide(double ax,double ay,double bx,double by)
@@ -347,6 +413,12 @@ public sealed class EditorWindow : Window
                 ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
                 ElementKind.Ellipse => new Ellipse { Width=element.Width*s, Height=element.Height*s, Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s, Fill=Brush(element.Fill) },
                 ElementKind.Line => new Line { StartPoint=new Point(0,0), EndPoint=new Point((element.X2-element.X)*s,(element.Y2-element.Y)*s), Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,2) },
+                ElementKind.Junction => new Avalonia.Controls.Shapes.Path {
+                    Data=Geometry.Parse(JunctionGeometry.PathData(element,s,offsetX,offsetY)),
+                    Stroke=Brush(element.Stroke),
+                    StrokeThickness=Math.Max(element.StrokeWidthMm*s,4),
+                    Fill=Brushes.Transparent
+                },
                 ElementKind.CubicBezier => new Avalonia.Controls.Shapes.Path {
                     Data=Geometry.Parse(string.Format(CultureInfo.InvariantCulture,
                         "M {0} {1} C {2} {3} {4} {5} {6} {7}",
@@ -360,12 +432,14 @@ public sealed class EditorWindow : Window
                 _=>null
             };
             if(visual is null) continue;
-            Canvas.SetLeft(visual,element.Kind==ElementKind.CubicBezier ? 0 : offsetX+element.X*s);
-            Canvas.SetTop(visual,element.Kind==ElementKind.CubicBezier ? 0 : offsetY+element.Y*s);
+            Canvas.SetLeft(visual,element.Kind is ElementKind.CubicBezier or ElementKind.Junction ? 0 : offsetX+element.X*s);
+            Canvas.SetTop(visual,element.Kind is ElementKind.CubicBezier or ElementKind.Junction ? 0 : offsetY+element.Y*s);
             visual.PointerPressed += (_,e)=>StartDrag(element,e);
             canvas.Children.Add(visual);
             if(selectedId==element.Id && element.Kind==ElementKind.CubicBezier)
                 DrawCurveHandles(element,s);
+            if(selectedId==element.Id && element.Kind==ElementKind.Junction)
+                DrawJunctionHandles(element,s);
             if(selectedId==element.Id && element.Kind is ElementKind.Panel or ElementKind.Ellipse)
             {
                 var outline=new Rectangle { Width=element.Width*s+12, Height=element.Height*s+12, Stroke=Brushes.Orange, StrokeThickness=2, IsHitTestVisible=false };
