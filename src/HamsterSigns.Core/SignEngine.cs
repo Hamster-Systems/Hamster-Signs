@@ -35,6 +35,9 @@ public static class SignValidator
                 result.Add(new("TEXT", $"Text element {e.Id} has invalid content.", true));
             if (e.Kind is ElementKind.Panel or ElementKind.Ellipse && (e.Width <= 0 || e.Height <= 0))
                 result.Add(new("GEOMETRY", $"Shape {e.Id} has invalid dimensions.", true));
+            if (e.Kind==ElementKind.Junction)
+                foreach(var error in JunctionGeometry.Validate(e))
+                    result.Add(new("JUNCTION", $"Element {e.Id}: {error}", true));
         }
         result.Add(new("STANDARDS", "TSRGD compliance checks are not implemented. Professional verification is required.", false));
         return result;
@@ -70,6 +73,9 @@ public static class SvgExporter
                     break;
                 case ElementKind.CubicBezier:
                     b.AppendLine($"<path d=\"M {F(e.X)} {F(e.Y)} C {F(e.Control1X)} {F(e.Control1Y)}, {F(e.Control2X)} {F(e.Control2Y)}, {F(e.X2)} {F(e.Y2)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
+                    break;
+                case ElementKind.Junction:
+                    b.AppendLine($"<path d=\"{JunctionGeometry.PathData(e)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>");
                     break;
             }
         }
