@@ -84,8 +84,9 @@ public static class DirectionSignLayout
         _ => (SignPalette.Background(sign),SignPalette.Foreground(sign))
     };
 
-    private static SignElement Text(string value,double x,double y,double size,string? color=null) =>
-        new() {Kind=ElementKind.Text,Text=value,X=x,Y=y,FontSizeMm=size,TextColor=color};
+    private static SignElement Text(string value,double x,double y,double size,string? color=null,
+        SignFontRole role=SignFontRole.Automatic) =>
+        new() {Kind=ElementKind.Text,Text=value,X=x,Y=y,FontSizeMm=size,TextColor=color,FontRole=role};
     private static SignElement Line(double x,double y,double x2,double y2,double sw,string color) =>
         new() {Kind=ElementKind.Line,X=x,Y=y,X2=x2,Y2=y2,StrokeWidthMm=sw,Stroke=color};
 
@@ -161,7 +162,9 @@ public static class DirectionSignLayout
                     break;
             }
 
-            doc.Elements.Add(Text(row.Place,textX,mid-x*.66,x,foreground));
+            var normalFont=spec.Background is SignColour.NonPrimaryWhite or SignColour.TemporaryYellow
+                ? SignFontRole.TransportHeavy : SignFontRole.TransportMedium;
+            doc.Elements.Add(Text(row.Place,textX,mid-x*.66,x,foreground,normalFont));
             if(!string.IsNullOrWhiteSpace(row.Route))
             {
                 var routeW=Width(row.Route,x)+routePad*2;
@@ -175,7 +178,9 @@ public static class DirectionSignLayout
                         Kind=ElementKind.Panel,X=routeX,Y=mid-x*.95,Width=routeW,
                         Height=x*1.9,Fill=fill,Stroke=panelText,StrokeWidthMm=sw*.13
                     });
-                doc.Elements.Add(Text(row.Route,routeX+routePad,mid-x*.66,x,panelText));
+                var routeFont=row.RouteStyle==RoutePanel.Motorway ? SignFontRole.MotorwayPermanent :
+                    row.RouteStyle==RoutePanel.NonPrimary ? SignFontRole.TransportHeavy : normalFont;
+                doc.Elements.Add(Text(row.Route,routeX+routePad,mid-x*.66,x,panelText,routeFont));
             }
         }
         return doc;
