@@ -106,4 +106,34 @@ Check(SignValidator.Check(new SignDocument { Elements=[broken] }).Any(x=>x.Code=
 var segmented=JunctionGeometry.TJunction(500,500);
 segmented.Junction!.Arms[0].Bends.Add(new JunctionPoint {X=100,Y=-100});
 Check(JunctionGeometry.PathData(segmented).Contains(" L "),"Straight multi-segment junction arm exported");
+var specification=DirectionSignLayout.Example();
+var built=DirectionSignLayout.Build(specification,"Test sign","HS-100");
+Check(built.WidthMm>720 && built.HeightMm>0,"Direction layout auto sizes sign face");
+Check(built.DirectionDesign!.Destinations.Count==3,"Structured destinations retained");
+Check(built.Elements.Count(e=>e.Kind==ElementKind.Text)==6,"Direction rows generate place and route legends");
+Check(built.Elements.Any(e=>e.Kind==ElementKind.Panel && e.Fill=="#174c9a"),"Motorway route patch created");
+Check(built.Elements.Any(e=>e.Kind==ElementKind.Text && e.Text=="(M6)" && e.TextColor=="#ffffff"),"Route patch uses contrasting text");
+Check(built.Elements.Any(e=>e.Kind==ElementKind.Line),"Directional arrows produce vector geometry");
+Check(DirectionSignLayout.Validate(specification).Count==0,"Valid structured sign accepted");
+var builtSvg=SvgExporter.Export(built);
+Check(builtSvg.Contains("Kendal") && builtSvg.Contains("(M6)"),"Generated legends appear in SVG");
+var builtCopy=SignFile.Deserialize(SignFile.Serialize(built));
+Check(builtCopy.DirectionDesign!.Destinations[2].RouteStyle==RoutePanel.Motorway,"Direction design survives save/load");
+var signEdit=new SignEditorSession(builtCopy);
+signEdit.Edit(doc=>doc.Elements=DirectionSignLayout.Build(new DirectionSignSpecification {
+    XHeightMm=120, Background=SignColour.MotorwayBlue,
+    Destinations=[new DirectionDestination {Place="The NORTH",Route="M6",RouteStyle=RoutePanel.None,Arrow=DirectionArrow.Ahead}]
+}).Elements);
+Check(signEdit.Undo() && signEdit.Document.Elements.Count==built.Elements.Count,"Generated elements support undo");
+var whiteSpec=new DirectionSignSpecification {
+    Background=SignColour.NonPrimaryWhite,
+    Destinations=[new DirectionDestination {Place="Village",Route="B1234",Arrow=DirectionArrow.Right,RouteStyle=RoutePanel.Motorway}]
+};
+var whiteSign=DirectionSignLayout.Build(whiteSpec);
+Check(whiteSign.Elements.Where(e=>e.Kind==ElementKind.Line).All(e=>e.Stroke=="#111111"),"Black arrows on white signs");
+Check(whiteSign.Elements.Any(e=>e.Kind==ElementKind.Text && e.Text=="Village" && e.TextColor=="#111111"),"White sign uses black main legend");
+Check(DirectionSignLayout.Validate(new DirectionSignSpecification { XHeightMm=0,Destinations=[] }).Count>0,"Invalid x-height and empty design rejected");
+Check(DirectionSignLayout.Build(new DirectionSignSpecification {
+    Destinations=[new DirectionDestination {Place="A"}]
+}).WidthMm%5==0,"Generated dimensions rounded to five-millimetre increments");
 Console.WriteLine("All tests passed.");
