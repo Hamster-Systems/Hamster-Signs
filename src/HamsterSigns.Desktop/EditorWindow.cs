@@ -22,6 +22,8 @@ public sealed class EditorWindow : Window
     private readonly CheckBox gridEnabled = new() { Content="Snap to grid", IsChecked=true };
     private readonly ComboBox colour = new() { ItemsSource=Enum.GetValues<SignColour>() };
     private readonly TextBox textEditor = new() { Watermark="Selected text" };
+    private readonly FontOutlineRenderer fontRenderer = new();
+    private readonly TextBlock fontStatus = new() { Text="No local font files loaded.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox directionXHeight = new() { Text="100", Watermark="x-height (mm)" };
     private readonly TextBlock typographyWarningText = new() { Text="No layout audit yet.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox destinationsInput = new() {
@@ -64,6 +66,15 @@ public sealed class EditorWindow : Window
         tools.Children.Add(destinationsInput);
         tools.Children.Add(Button("Generate / regenerate sign", GenerateDirectionSign));
         tools.Children.Add(typographyWarningText);
+        tools.Children.Add(new Separator());
+        tools.Children.Add(new TextBlock { Text="Font outlines",FontWeight=FontWeight.SemiBold });
+        tools.Children.Add(Button("Load Transport Medium font",()=>LoadFont(SignFontRole.TransportMedium)));
+        tools.Children.Add(Button("Load Transport Heavy font",()=>LoadFont(SignFontRole.TransportHeavy)));
+        tools.Children.Add(Button("Load Motorway Permanent font",()=>LoadFont(SignFontRole.MotorwayPermanent)));
+        tools.Children.Add(Button("Selected text: Medium",()=>SetSelectedFontRole(SignFontRole.TransportMedium)));
+        tools.Children.Add(Button("Selected text: Heavy",()=>SetSelectedFontRole(SignFontRole.TransportHeavy)));
+        tools.Children.Add(Button("Selected text: Motorway",()=>SetSelectedFontRole(SignFontRole.MotorwayPermanent)));
+        tools.Children.Add(fontStatus);
         tools.Children.Add(new TextBlock {
             Text="Preliminary calculated geometry. Transport tile metrics and legal spacing are not yet verified.",
             TextWrapping=TextWrapping.Wrap, FontSize=11
@@ -144,6 +155,51 @@ public sealed class EditorWindow : Window
     {
         if(value=="none") return Brushes.Transparent;
         try { return new SolidColorBrush(Color.Parse(value)); } catch { return Brushes.White; }
+    }
+    private async void LoadFont(SignFontRole role)
+    {
+        try
+        {
+            var files=await StorageProvider.OpenFilePickerAsync(new()
+            {
+                Title=$"Select your licensed {role} TTF or OTF font",
+                AllowMultiple=false
+            });
+            if(files.Count==0) return;
+            var localPath=files[0].TryGetLocalPath();
+            if(string.IsNullOrWhiteSpace(localPath))
+                throw new InvalidOperationException("Font must be available as a local file.");
+            fontRenderer.SetFont(role,localPath);
+            fontStatus.Text=fontRenderer.Audit(Document);
+            Draw();
+        }
+        catch(Exception ex) {fontStatus.Text=$"Font load failed: {ex.Message}";}
+    }
+    private void SetSelectedFontRole(SignFontRole role)
+    {
+        if(Selected is not {Kind:ElementKind.Text}) {status.Text="Select a text element first.";return;}
+        var id=selectedId;
+        editor.Edit(d=>d.Elements.First(e=>e.Id==id).FontRole=role);
+        fontStatus.Text=fontRenderer.Audit(Document);
+        Draw();
+    }
+    private Control TextVisual(SignElement element,double scale)
+    {
+        try
+        {
+            var geometry=fontRenderer.BuildPath(element,Document.Background,scale,offsetX,offsetY);
+            if(!string.IsNullOrWhiteSpace(geometry))
+                return new Avalonia.Controls.Shapes.Path {
+                    Data=Geometry.Parse(geometry),
+                    Fill=Brush(element.TextColor ?? SignPalette.Foreground(Document.Background)),
+                    StrokeThickness=0
+                };
+        }
+        catch(Exception ex) { fontStatus.Text=$"Outline unavailable: {ex.Message}"; }
+        return new TextBlock {
+            Text=element.Text,FontSize=element.FontSizeMm*scale,
+            Foreground=Brush(element.TextColor ?? SignPalette.Foreground(Document.Background))
+        };
     }
     private void GenerateDirectionSign()
     {
@@ -491,13 +547,14 @@ public sealed class EditorWindow : Window
     {
         try
         {
-            var svg=SvgExporter.Export(Document);
+            var svg=SvgExporter.Export(Document,
+                element=>fontRenderer.BuildPath(element,Document.Background));
             var file=await StorageProvider.SaveFilePickerAsync(new() { Title="Export vector artwork", SuggestedFileName="sign.svg" });
             if(file is null) return;
             await using var stream=await file.OpenWriteAsync();
             using var writer=new StreamWriter(stream);
             await writer.WriteAsync(svg);
-            status.Text="SVG exported";
+            status.Text="SVG exported. "+fontRenderer.Audit(Document);
         }
         catch(Exception ex) { status.Text=$"Export failed: {ex.Message}"; }
     }
@@ -590,7 +647,7 @@ public sealed class EditorWindow : Window
         {
             Control? visual=element.Kind switch
             {
-                ElementKind.Text => new TextBlock { Text=element.Text, FontSize=element.FontSizeMm*s, Foreground=Brush(element.TextColor ?? SignPalette.Foreground(Document.Background)) },
+                ElementKind.Text => TextVisual(element,s),
                 ElementKind.Panel => new Rectangle { Width=element.Width*s, Height=element.Height*s, Fill=Brush(element.Fill), Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s },
                 ElementKind.Ellipse => new Ellipse { Width=element.Width*s, Height=element.Height*s, Stroke=Brush(element.Stroke), StrokeThickness=element.StrokeWidthMm*s, Fill=Brush(element.Fill) },
                 ElementKind.Line => new Line { StartPoint=new Point(0,0), EndPoint=new Point((element.X2-element.X)*s,(element.Y2-element.Y)*s), Stroke=Brush(element.Stroke), StrokeThickness=Math.Max(element.StrokeWidthMm*s,2) },
@@ -608,8 +665,9 @@ public sealed class EditorWindow : Window
                 _=>null
             };
             if(visual is null) continue;
-            Canvas.SetLeft(visual,(element.Kind is ElementKind.CubicBezier or ElementKind.Junction) ? 0 : offsetX+element.X*s);
-            Canvas.SetTop(visual,(element.Kind is ElementKind.CubicBezier or ElementKind.Junction) ? 0 : offsetY+element.Y*s);
+            var vectorText=element.Kind==ElementKind.Text && visual is Avalonia.Controls.Shapes.Path;
+            Canvas.SetLeft(visual,(element.Kind is ElementKind.CubicBezier or ElementKind.Junction) || vectorText ? 0 : offsetX+element.X*s);
+            Canvas.SetTop(visual,(element.Kind is ElementKind.CubicBezier or ElementKind.Junction) || vectorText ? 0 : offsetY+element.Y*s);
             visual.PointerPressed += (_,e)=>StartDrag(element,e);
             canvas.Children.Add(visual);
             if(element.Kind==ElementKind.Junction)
