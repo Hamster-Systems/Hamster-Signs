@@ -287,4 +287,45 @@ Check(SignValidator.Check(new SignDocument {
     Elements=[new SignElement {Kind=ElementKind.Symbol,Width=-1,Height=200}]
 }).Any(d=>d.Code=="SYMBOL" && d.IsError),"Invalid symbol sizing rejected");
 Check(SvgExporter.Export(mapTemplate).Contains("<path"),"Map template exports vector diagram");
+// Screenshot review follow-up: map route associations and readable arrows.
+var screenshotMap=SignTemplateCatalog.Build(SignTemplateKind.MapAdvance,DirectionSignLayout.Example());
+var screenshotJunction=screenshotMap.Elements.Single(e=>e.Kind==ElementKind.Junction);
+var mappedRows=screenshotMap.DirectionDesign!.Destinations;
+Check(mappedRows.All(d=>d.LinkedMapArmId.HasValue),"Map rows link to an editable road arm");
+Check(mappedRows.Select(d=>d.LinkedMapArmId).Distinct().Count()==mappedRows.Count,
+      "Distinct destination rows map to distinct arms");
+Check(screenshotJunction.Junction!.Arms.Count==mappedRows.Count+1,
+      "Map generator includes one incoming and one outgoing arm per destination");
+Check(screenshotJunction.Junction.Arms.Count(a=>a.ShowArrow)==mappedRows.Count,
+      "Outgoing routes have arrowheads and incoming road does not");
+Check(screenshotJunction.Junction.Arms.All(a=>a.EndOffsetX.HasValue && a.EndOffsetY.HasValue),
+      "Map arms use independent endpoint coordinates");
+Check(screenshotJunction.Junction.Arms.Take(mappedRows.Count).All(a=>a.Bends.Count>0 && a.Smooth),
+      "Map branches use curved bends rather than tiny straight compass spokes");
+Check(JunctionGeometry.PathData(screenshotJunction).Contains(" Q "),
+      "Map SVG includes curved route branches");
+Check(JunctionGeometry.ArrowPathData(screenshotJunction).Contains(" Z "),
+      "Map road tips generate vector arrowheads");
+Check(screenshotJunction.Junction.Arms.All(a=>{
+    var (px,py)=JunctionGeometry.Endpoint(screenshotJunction,a);
+    return px>=0 && py>=0 && px<=screenshotMap.WidthMm && py<=screenshotMap.HeightMm;
+}),"All generated map arms terminate within the sign face");
+var linkedCopy=SignFile.Deserialize(SignFile.Serialize(screenshotMap));
+Check(linkedCopy.DirectionDesign!.Destinations.All(d=>d.LinkedMapArmId.HasValue),
+      "Destination-to-arm links survive saving and reopening");
+var testLinkedArm=linkedCopy.Elements.Single(e=>e.Kind==ElementKind.Junction).Junction!.Arms[0];
+var previousX=testLinkedArm.EndOffsetX!.Value;
+var linkEditor=new SignEditorSession(linkedCopy);
+linkEditor.Edit(d=>d.Elements.Single(e=>e.Kind==ElementKind.Junction).Junction!.Arms[0].EndOffsetX+=35);
+Check(linkEditor.Undo() &&
+      Math.Abs(linkEditor.Document.Elements.Single(e=>e.Kind==ElementKind.Junction)
+          .Junction!.Arms[0].EndOffsetX!.Value-previousX)<0.00001,
+      "Map endpoint movement is undoable");
+var noLink=JunctionGeometry.Roundabout(200,200,40);
+noLink.Junction!.Arms[0].EndOffsetX=10;
+Check(JunctionGeometry.Validate(noLink).Any(e=>e.Contains("coordinate pair")),
+      "Incomplete endpoint override rejected");
+var arrowStack=SignTemplateCatalog.Build(SignTemplateKind.StackAdvance,DirectionSignLayout.Example());
+Check(arrowStack.Elements.Where(e=>e.Kind==ElementKind.Line).All(e=>e.StrokeWidthMm>=17.5),
+      "Stack direction arrows have increased stroke weight");
 Console.WriteLine("All tests passed.");
