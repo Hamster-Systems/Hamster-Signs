@@ -71,8 +71,6 @@ public static class MapAutoRouter
         // Endpoint tracks the label group's actual offset from drag origin.
         // This works for multiple pointer moves within one edit transaction.
         var anchor=group.First(e=>e.Id==selectedElementId);
-        var effectiveDx=anchor.X-origins[selectedElementId].X;
-        var effectiveDy=anchor.Y-origins[selectedElementId].Y;
         var oldStart=previousGroup[selectedElementId];
         var incrementalDx=anchor.X-oldStart.X;
         var incrementalDy=anchor.Y-oldStart.Y;
