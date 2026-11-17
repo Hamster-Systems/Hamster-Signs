@@ -52,7 +52,8 @@ public static class SvgExporter
 {
     private static string F(double n) => n.ToString("0.###", CultureInfo.InvariantCulture);
     private static string E(string input) => SecurityElement.Escape(input) ?? "";
-    public static string Export(SignDocument doc)
+    /// <summary>Optional glyph outline provider returns an SVG path in document mm coordinates.</summary>
+    public static string Export(SignDocument doc, Func<SignElement, string?>? outlineProvider=null)
     {
         if (SignValidator.Check(doc).Any(x => x.IsError))
             throw new InvalidDataException("Invalid sign geometry.");
@@ -65,7 +66,11 @@ public static class SvgExporter
             switch (e.Kind)
             {
                 case ElementKind.Text:
-                    b.AppendLine($"<text x=\"{F(e.X)}\" y=\"{F(e.Y+e.FontSizeMm)}\" fill=\"{E(e.TextColor ?? SignPalette.Foreground(doc.Background))}\" font-family=\"sans-serif\" font-size=\"{F(e.FontSizeMm)}\">{E(e.Text)}</text>");
+                    var outline=outlineProvider?.Invoke(e);
+                    if(!string.IsNullOrWhiteSpace(outline))
+                        b.AppendLine($"<path d=\"{E(outline)}\" fill=\"{E(e.TextColor ?? SignPalette.Foreground(doc.Background))}\" fill-rule=\"nonzero\"/>");
+                    else
+                        b.AppendLine($"<text x=\"{F(e.X)}\" y=\"{F(e.Y+e.FontSizeMm)}\" fill=\"{E(e.TextColor ?? SignPalette.Foreground(doc.Background))}\" font-family=\"sans-serif\" font-size=\"{F(e.FontSizeMm)}\">{E(e.Text)}</text>");
                     break;
                 case ElementKind.Panel:
                     b.AppendLine($"<rect x=\"{F(e.X)}\" y=\"{F(e.Y)}\" width=\"{F(e.Width)}\" height=\"{F(e.Height)}\" fill=\"{E(e.Fill)}\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
