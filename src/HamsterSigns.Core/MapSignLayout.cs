@@ -55,7 +55,8 @@ public static class MapSignLayout
 
         var upperRows=Math.Max(1,aheadRows.Count);
         var sideRows=Math.Max(1,Math.Max(leftRows.Count,rightRows.Count));
-        var centreY=padding+upperRows*pitch+2*x;
+        var centreY=Math.Max(padding+upperRows*pitch+2*x,
+            padding+rowH/2+(sideRows-1)*pitch/2);
         var sideStackHeight=(sideRows-1)*pitch+rowH;
         var rawH=centreY+Math.Max(2.5*x,sideStackHeight/2)+3*x+padding;
         var height=DirectionLayoutRules.RoundUp(rawH,x,spec.RoundDimensions);
