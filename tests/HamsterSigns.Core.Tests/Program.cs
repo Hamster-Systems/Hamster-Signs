@@ -189,4 +189,59 @@ Check(assigned.Elements.Any(e=>e.Kind==ElementKind.Text && e.Text=="(M6)" &&
     e.FontRole==SignFontRole.MotorwayPermanent),"Motorway route patch selects specialist font role");
 Check(assigned.Elements.Any(e=>e.Kind==ElementKind.Text && e.Text=="Kendal" &&
     e.FontRole==SignFontRole.TransportMedium),"Primary destinations use Medium role");
+// v0.9 — selected Chapter 7 geometry and sign-layout regression checks.
+Check(DirectionLayoutRules.MainBorderWidth(100)==37.5,"Main border measures 1.5 stroke widths");
+Check(DirectionLayoutRules.OuterTileClearance(100)==62.5,"Clearance inside main border is 2.5 sw");
+Check(DirectionLayoutRules.RoutePatchInset(100)==25,"Route patches inset by 1 sw");
+Check(DirectionLayoutRules.DarkPatchBorderWidth(100)==12.5,"Dark-on-dark patch white border 0.5 sw");
+Check(DirectionLayoutRules.PatchCornerRadius(100)==25,"Patch inside corner radius 1 sw");
+Check(DirectionLayoutRules.RoundingIncrement(100)==5 && DirectionLayoutRules.RoundingIncrement(150)==10 &&
+      DirectionLayoutRules.RoundingIncrement(250)==15,"Chapter 7 size rounding increment varies by x-height");
+Check(DirectionLayoutRules.RoundUp(151,150)==160 &&
+      DirectionLayoutRules.RoundUp(151,150,false)==151,"Optional sign dimension rounding");
+Check(DirectionLayoutRules.NeedsWhitePatchBorder(RoutePanel.Motorway,SignColour.PrimaryGreen),
+      "Motorway blue patch on green requires white border");
+Check(!DirectionLayoutRules.NeedsWhitePatchBorder(RoutePanel.NonPrimary,SignColour.PrimaryGreen),
+      "White patch on green requires no extra white border");
+Check(Math.Abs(TransportLetterMetrics.Measure("b",100).WidthMm-122)<0.00001,
+      "Corrected TM2 b tile width equals 4.88 sw");
+Check(Math.Abs(TransportLetterMetrics.Measure("'",100).WidthMm-39)<0.00001,
+      "Corrected TM2 apostrophe width equals 1.56 sw");
+var layout=DirectionSignLayout.Build(DirectionSignLayout.Example());
+var mainBorder=layout.Elements.First();
+Check(mainBorder.Kind==ElementKind.Panel &&
+      Math.Abs(mainBorder.StrokeWidthMm-37.5)<0.00001 &&
+      mainBorder.CornerRadiusMm==mainBorder.StrokeWidthMm,
+      "Main sign border width and radius generated in sw");
+var motorwayPatch=layout.Elements.Single(e=>e.Kind==ElementKind.Panel && e.Fill=="#174c9a");
+var motorwayLegend=layout.Elements.Single(e=>e.Kind==ElementKind.Text && e.Text=="(M6)");
+Check(Math.Abs(motorwayPatch.StrokeWidthMm-12.5)<0.00001 &&
+      motorwayPatch.Stroke=="#ffffff","White patch border generated for dark on dark");
+Check(motorwayPatch.CornerRadiusMm==25,"Route patch has rounded corners");
+Check(Math.Abs(motorwayLegend.X-motorwayPatch.X-25)<0.00001,
+      "Route patch horizontal text inset equals 1 sw");
+Check(motorwayPatch.Y<=motorwayLegend.Y && motorwayPatch.Y+motorwayPatch.Height>=motorwayLegend.Y+200,
+      "Route patch vertically encloses text tile");
+var placeLegend=layout.Elements.Single(e=>e.Kind==ElementKind.Text && e.Text=="The SOUTH");
+Check(Math.Abs(placeLegend.Y-motorwayLegend.Y)<0.00001,
+      "Place and route-number tiles align vertically");
+Check(motorwayPatch.X-placeLegend.X-TransportLetterMetrics.Measure(placeLegend.Text,100).WidthMm>=62.5-0.00001,
+      "Route patch maintains at least 2.5 sw distance from legend tile");
+Check(layout.WidthMm%DirectionLayoutRules.RoundingIncrement(100)==0 &&
+      layout.HeightMm%DirectionLayoutRules.RoundingIncrement(100)==0,
+      "Generated overall dimensions use optional rounded increments");
+var noRoundDesign=DirectionSignLayout.Example();
+noRoundDesign.RoundDimensions=false;
+var unrounded=DirectionSignLayout.Build(noRoundDesign);
+Check(unrounded.WidthMm<=layout.WidthMm && unrounded.HeightMm<=layout.HeightMm,
+      "Disabling rounding preserves or reduces sign dimensions");
+Check(SignFile.Deserialize(SignFile.Serialize(layout)).Elements.First().CornerRadiusMm==37.5,
+      "Rounded panel geometry survives native project roundtrip");
+Check(SvgExporter.Export(layout).Contains("rx=\\\"25\\\""),
+      "SVG export includes rounded patch corners");
+var invalidRadius=new SignDocument { Elements=[new SignElement {
+    Kind=ElementKind.Panel,Width=100,Height=80,CornerRadiusMm=50
+}]};
+Check(SignValidator.Check(invalidRadius).Any(d=>d.Code=="RADIUS" && d.IsError),
+      "Invalid panel corner radii rejected");
 Console.WriteLine("All tests passed.");
