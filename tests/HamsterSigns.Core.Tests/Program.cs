@@ -237,7 +237,7 @@ Check(unrounded.WidthMm<=layout.WidthMm && unrounded.HeightMm<=layout.HeightMm,
       "Disabling rounding preserves or reduces sign dimensions");
 Check(SignFile.Deserialize(SignFile.Serialize(layout)).Elements.First().CornerRadiusMm==37.5,
       "Rounded panel geometry survives native project roundtrip");
-Check(SvgExporter.Export(layout).Contains("rx=\\\"25\\\""),
+Check(SvgExporter.Export(layout).Contains("rx=\"25\""),
       "SVG export includes rounded patch corners");
 var invalidRadius=new SignDocument { Elements=[new SignElement {
     Kind=ElementKind.Panel,Width=100,Height=80,CornerRadiusMm=50
