@@ -413,4 +413,56 @@ Check(groupHistory.Undo() &&
       groupHistory.Document.Elements.Single(e=>e.Id==historyRow.MapPlaceElementId).X==
       historyStart[historyRow.MapPlaceElementId!.Value].X,
       "One undo restores the complete destination group");
+// v0.13: destination-aware road routing and deterministic rollback.
+var routingDoc=SignFile.Deserialize(SignFile.Serialize(mapZones));
+var routingRow=routingDoc.DirectionDesign!.Destinations.First();
+var routingId=routingRow.MapPlaceElementId!.Value;
+var routingOrigins=MapLegendGroups.Origins(routingDoc,routingId);
+var routingNetwork=routingDoc.Elements.Single(e=>e.Kind==ElementKind.Junction);
+var linkedRoutingArm=routingNetwork.Junction!.Arms.Single(a=>a.Id==routingRow.LinkedMapArmId);
+var otherEndBefore=routingNetwork.Junction.Arms.Where(a=>a.Id!=linkedRoutingArm.Id)
+    .ToDictionary(a=>a.Id,a=>JunctionGeometry.Endpoint(routingNetwork,a));
+var endpointBefore=JunctionGeometry.Endpoint(routingNetwork,linkedRoutingArm);
+var reroute=MapAutoRouter.MoveLinkedLegend(routingDoc,routingId,routingOrigins,5,5,false);
+Check(reroute.Success && reroute.CandidateCount>0,
+    "Auto-router can move a group and evaluate road bend candidates");
+var endpointAfter=JunctionGeometry.Endpoint(routingNetwork,linkedRoutingArm);
+Check(Math.Abs(endpointAfter.X-endpointBefore.X-5)<0.00001 &&
+      Math.Abs(endpointAfter.Y-endpointBefore.Y-5)<0.00001,
+    "Road endpoint follows the destination movement exactly");
+Check(routingNetwork.Junction.Arms.Where(a=>a.Id!=linkedRoutingArm.Id)
+    .All(a=> {
+        var before=otherEndBefore[a.Id];
+        var after=JunctionGeometry.Endpoint(routingNetwork,a);
+        return Math.Abs(before.X-after.X)<0.00001 && Math.Abs(before.Y-after.Y)<0.00001;
+    }),"Auto-router leaves unrelated roads unchanged");
+Check(routingDoc.Elements.Single(e=>e.Id==routingId).X==routingOrigins[routingId].X+5,
+    "Auto-router moves the destination components");
+var beforeInvalid=routingDoc.Elements.Single(e=>e.Id==routingId).X;
+var endpointBeforeInvalid=JunctionGeometry.Endpoint(routingNetwork,linkedRoutingArm);
+var invalidMove=MapAutoRouter.MoveLinkedLegend(routingDoc,routingId,routingOrigins,-100000,0,true);
+Check(!invalidMove.Success,"Auto-router rejects out-of-face destination movement");
+Check(Math.Abs(routingDoc.Elements.Single(e=>e.Id==routingId).X-beforeInvalid)<0.00001 &&
+      JunctionGeometry.Endpoint(routingNetwork,linkedRoutingArm)==endpointBeforeInvalid,
+    "Rejected route leaves group and arm geometry unchanged");
+var linkedHistory=new SignEditorSession(SignFile.Deserialize(SignFile.Serialize(mapZones)));
+var selectedHistoryRow=linkedHistory.Document.DirectionDesign!.Destinations.First();
+var routeOrigins=MapLegendGroups.Origins(linkedHistory.Document,selectedHistoryRow.MapPlaceElementId!.Value);
+var historicalArm=linkedHistory.Document.Elements.Single(e=>e.Kind==ElementKind.Junction)
+    .Junction!.Arms.Single(a=>a.Id==selectedHistoryRow.LinkedMapArmId);
+var oldEndpoint=JunctionGeometry.Endpoint(
+    linkedHistory.Document.Elements.Single(e=>e.Kind==ElementKind.Junction),historicalArm);
+linkedHistory.Edit(d=> {
+    var moved=MapAutoRouter.MoveLinkedLegend(d,selectedHistoryRow.MapPlaceElementId!.Value,
+        routeOrigins,5,5,false);
+    if(!moved.Success) throw new InvalidOperationException(moved.Message);
+});
+Check(linkedHistory.Undo() &&
+    Math.Abs(linkedHistory.Document.Elements.Single(e=>e.Id==selectedHistoryRow.MapPlaceElementId).X-
+        routeOrigins[selectedHistoryRow.MapPlaceElementId!.Value].X)<0.00001,
+    "Undo restores grouped auto-route movement");
+var restoredJunction=linkedHistory.Document.Elements.Single(e=>e.Kind==ElementKind.Junction);
+Check(JunctionGeometry.Endpoint(restoredJunction,
+    restoredJunction.Junction!.Arms.Single(a=>a.Id==selectedHistoryRow.LinkedMapArmId))==oldEndpoint,
+    "Undo also restores the associated road endpoint");
 Console.WriteLine("All tests passed.");
