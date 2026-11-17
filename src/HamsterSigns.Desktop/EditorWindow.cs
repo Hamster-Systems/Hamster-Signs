@@ -23,6 +23,7 @@ public sealed class EditorWindow : Window
     private readonly ComboBox colour = new() { ItemsSource=Enum.GetValues<SignColour>() };
     private readonly TextBox textEditor = new() { Watermark="Selected text" };
     private readonly TextBox directionXHeight = new() { Text="100", Watermark="x-height (mm)" };
+    private readonly TextBlock typographyWarningText = new() { Text="No layout audit yet.",TextWrapping=TextWrapping.Wrap,FontSize=11 };
     private readonly TextBox destinationsInput = new() {
         AcceptsReturn=true, TextWrapping=TextWrapping.NoWrap, Height=148,
         Watermark="Place | Route | ahead/left/right | none/motorway/primary/nonprimary/tourist"
@@ -62,6 +63,7 @@ public sealed class EditorWindow : Window
         tools.Children.Add(directionXHeight);
         tools.Children.Add(destinationsInput);
         tools.Children.Add(Button("Generate / regenerate sign", GenerateDirectionSign));
+        tools.Children.Add(typographyWarningText);
         tools.Children.Add(new TextBlock {
             Text="Preliminary calculated geometry. Transport tile metrics and legal spacing are not yet verified.",
             TextWrapping=TextWrapping.Wrap, FontSize=11
@@ -180,7 +182,9 @@ public sealed class EditorWindow : Window
             selectedId=null;
             SynchronizeProperties();
             Fit();
-            status.Text="Generated sign from structured destinations (preliminary spacing only)";
+            var typographyWarnings=DirectionSignLayout.TypographyWarnings(spec);
+            status.Text=$"Generated sign; {typographyWarnings.Count} typography / standards warnings. See warning list in sidebar.";
+            typographyWarningText.Text=string.Join("\n",typographyWarnings);
         }
         catch(ArgumentException ex) {status.Text=ex.Message;}
     }
@@ -191,6 +195,7 @@ public sealed class EditorWindow : Window
         directionXHeight.Text=Format(spec.XHeightMm);
         destinationsInput.Text=string.Join("\n",spec.Destinations.Select(d=>
             $"{d.Place} | {d.Route} | {d.Arrow.ToString().ToLowerInvariant()} | {d.RouteStyle.ToString().ToLowerInvariant()}"));
+        typographyWarningText.Text=string.Join("\n",DirectionSignLayout.TypographyWarnings(spec));
     }
     private void Add(SignElement element)
     {
