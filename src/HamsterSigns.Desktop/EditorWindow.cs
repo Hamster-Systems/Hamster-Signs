@@ -22,6 +22,10 @@ public sealed class EditorWindow : Window
     private readonly CheckBox gridEnabled = new() { Content="Snap to grid", IsChecked=true };
     private readonly ComboBox colour = new() { ItemsSource=Enum.GetValues<SignColour>() };
     private readonly TextBox textEditor = new() { Watermark="Selected text" };
+    private readonly CheckBox moveMapGroups = new() { Content="Move linked map legends together",IsChecked=true };
+    private readonly CheckBox protectMapClearance = new() { Content="Block legend overlaps and road collisions",IsChecked=true };
+    private IReadOnlyDictionary<Guid,(double X,double Y)> groupOrigins =
+        new Dictionary<Guid,(double X,double Y)>();
     private readonly TextBlock linkedRoadInfo = new() {
         Text="Select an orange road endpoint to inspect its linked destination.",
         TextWrapping=TextWrapping.Wrap, FontSize=11
@@ -103,6 +107,8 @@ public sealed class EditorWindow : Window
         tools.Children.Add(Button("Irregular roundabout", () => Add(JunctionGeometry.IrregularRoundabout(1100,1000))));
         tools.Children.Add(Button("Crossroads", () => Add(JunctionGeometry.Crossroads(1100,1000))));
         tools.Children.Add(linkedRoadInfo);
+        tools.Children.Add(moveMapGroups);
+        tools.Children.Add(protectMapClearance);
         tools.Children.Add(Button("Add junction arm", AddJunctionArm));
         tools.Children.Add(Button("Remove last arm", RemoveJunctionArm));
         tools.Children.Add(Button("Add bend to selected arm", AddArmBend));
@@ -419,6 +425,9 @@ public sealed class EditorWindow : Window
         originX=element.X; originY=element.Y; originX2=element.X2; originY2=element.Y2;
         originC1X=element.Control1X; originC1Y=element.Control1Y; originC2X=element.Control2X; originC2Y=element.Control2Y;
         activeHandle=0;
+        groupOrigins=moveMapGroups.IsChecked==true
+            ? MapLegendGroups.Origins(Document,element.Id)
+            : new Dictionary<Guid,(double X,double Y)>();
         editor.Begin(); dragging=true;
         e.Pointer.Capture(canvas);
         e.Handled=true;
@@ -433,6 +442,7 @@ public sealed class EditorWindow : Window
         originC1X=element.Control1X; originC1Y=element.Control1Y;
         originC2X=element.Control2X; originC2Y=element.Control2Y;
         activeHandle=handle;
+        groupOrigins=new Dictionary<Guid,(double X,double Y)>();
         if(element.Kind==ElementKind.Junction && element.Junction is not null)
         {
             if(handle>=100 && handle<200)
@@ -477,7 +487,15 @@ public sealed class EditorWindow : Window
         var element=Selected;
         if(element is null) return;
         double dx=(point.X-dragStart.X)/Scale, dy=(point.Y-dragStart.Y)/Scale;
-        if(element.Kind==ElementKind.Junction && activeHandle>=100)
+        if(activeHandle==0 && groupOrigins.Count>0)
+        {
+            var snappedX=SignEditorSession.Snap(originX+dx,Grid);
+            var snappedY=SignEditorSession.Snap(originY+dy,Grid);
+            if(!MapLegendGroups.MoveFromOrigins(Document,groupOrigins,
+                snappedX-originX,snappedY-originY,protectMapClearance.IsChecked==true))
+                status.Text="Move blocked: group would leave sign or overlap a legend/road.";
+        }
+        else if(element.Kind==ElementKind.Junction && activeHandle>=100)
         {
             if(element.Junction is not null && activeHandle<1000)
             {
@@ -547,7 +565,12 @@ public sealed class EditorWindow : Window
             if(commit) editor.Commit(); else editor.Cancel();
             if(!commit) selectedId=null;
         }
-        dragging=false; panning=false; Draw();
+        dragging=false; panning=false;
+        groupOrigins=new Dictionary<Guid,(double X,double Y)>();
+        typographyWarningText.Text=Document.DirectionDesign is null ? ""
+            : string.Join("\n",DirectionSignLayout.TypographyWarnings(Document.DirectionDesign)
+                .Concat(MapSignLayout.Audit(Document)));
+        Draw();
     }
     private async void Save()
     {
