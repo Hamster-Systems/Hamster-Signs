@@ -30,6 +30,7 @@ public sealed class EditorWindow : Window
     private double originX, originY, originX2, originY2;
     private double originC1X, originC1Y, originC2X, originC2Y;
     private int activeHandle;
+    private double originHandleX, originHandleY;
     private bool dragging, panning;
     private const double MinZoom=0.2, MaxZoom=8;
 
@@ -240,6 +241,12 @@ public sealed class EditorWindow : Window
         originC1X=element.Control1X; originC1Y=element.Control1Y;
         originC2X=element.Control2X; originC2Y=element.Control2Y;
         activeHandle=handle;
+        if(element.Kind==ElementKind.Junction && handle>=100 && element.Junction is not null)
+        {
+            var endpoint=JunctionGeometry.Endpoint(element,element.Junction.Arms[handle-100]);
+            originHandleX=endpoint.X;
+            originHandleY=endpoint.Y;
+        }
         editor.Begin(); dragging=true;
         e.Pointer.Capture(canvas);
         e.Handled=true;
@@ -262,8 +269,8 @@ public sealed class EditorWindow : Window
             var index=activeHandle-100;
             if(element.Junction is not null && index>=0 && index<element.Junction.Arms.Count)
                 JunctionGeometry.MoveEndpoint(element, element.Junction.Arms[index],
-                    SignEditorSession.Snap(originX+dx,Grid),
-                    SignEditorSession.Snap(originY+dy,Grid));
+                    SignEditorSession.Snap(originHandleX+dx,Grid),
+                    SignEditorSession.Snap(originHandleY+dy,Grid));
         }
         else if(element.Kind==ElementKind.CubicBezier && activeHandle!=0)
         {
@@ -432,8 +439,8 @@ public sealed class EditorWindow : Window
                 _=>null
             };
             if(visual is null) continue;
-            Canvas.SetLeft(visual,element.Kind is ElementKind.CubicBezier or ElementKind.Junction ? 0 : offsetX+element.X*s);
-            Canvas.SetTop(visual,element.Kind is ElementKind.CubicBezier or ElementKind.Junction ? 0 : offsetY+element.Y*s);
+            Canvas.SetLeft(visual,(element.Kind is ElementKind.CubicBezier or ElementKind.Junction) ? 0 : offsetX+element.X*s);
+            Canvas.SetTop(visual,(element.Kind is ElementKind.CubicBezier or ElementKind.Junction) ? 0 : offsetY+element.Y*s);
             visual.PointerPressed += (_,e)=>StartDrag(element,e);
             canvas.Children.Add(visual);
             if(selectedId==element.Id && element.Kind==ElementKind.CubicBezier)
