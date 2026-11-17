@@ -12,6 +12,20 @@ Core smoke checks:
 dotnet run --project tests/HamsterSigns.Core.Tests
 ```
 
+## v0.5 advanced road diagram tools
+- Add an irregular roundabout preset with 8 radial ring vertices
+- Select an irregular roundabout: drag yellow square handles to adjust the radii individually
+- Select an arm endpoint (orange circular handle) before using arm controls
+- **Add bend to selected arm** inserts a waypoint between the arm's last point and its endpoint
+- Drag cyan square handles to reposition individual bends; maximum 32 bends per arm
+- **Toggle curved/straight arm** changes between segmented straight roads and connected quadratic Bézier bends
+- **Toggle arrow at road end** adds or removes a filled, direction-following arrowhead
+- Save/open retains bends, style, arrow choices and ring vertices; SVG export uses the same geometry
+- Arm bends are local to their parent junction, so dragging the whole junction keeps the road network together
+- All editor actions use the existing history transaction system
+
+**Limits:** This remains an illustrative diagram editor, not a TSRGD-validated generator. The irregular ring uses piecewise-linear radial sampling, and bends are quadratic path controls rather than a traffic-engineering centreline solver. Exact glyphs, legal arrow sizing, standards spacing, island outlines and automated collision handling are not implemented.
+
 ## v0.4 parametric junction constructor
 
 - **Roundabout (4 arms)** creates a circular route diagram and four connected radial road arms
