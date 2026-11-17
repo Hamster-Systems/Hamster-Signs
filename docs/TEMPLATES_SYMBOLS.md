@@ -1,3 +1,11 @@
+## v0.13 — Linked route auto-adjustment
+
+With **Move linked map legends together** active, the editor can now also **Auto-route linked road when moving destination** (enabled by default). Dragging the destination changes the endpoint of its associated road arm by the same displacement, then searches a bounded set of quadratic bend-control candidates to preserve clearance from text and patches. Unrelated road arms are never modified. The route and all legend components participate in one undo/redo transaction.
+
+Use **Auto-route selected destination** to search for a clearer bend position without moving its label. If collision protection is enabled, an unsuccessful proposal is reverted, including the legend movement, endpoint and bend geometry. With collision protection disabled, the editor may choose the lowest-warning candidate even when no warning-free route is available.
+
+This is a *bounded, approximate* routing aid rather than a fully automated road network layout solver: it samples centreline points, measures against rectangular legend tiles, and cannot guarantee clearance from prescribed sign symbols, exact glyph outlines or other roads. Always review the diagnostics and final SVG before any professional use.
+
 ## v0.12 — Grouped map legends and clearance guard
 
 The map-template generator gives each destination a persistent set of element IDs for its place text, route number and optional coloured patch. Those objects remain independently editable, but by default **dragging any one moves the whole destination group**. Undo reverses the whole movement at once.
