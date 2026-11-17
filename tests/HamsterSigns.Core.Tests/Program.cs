@@ -91,7 +91,7 @@ Check(path.Contains(" Q ") && path.Contains(" Z "),"Smooth bends and irregular c
 var arrowData=JunctionGeometry.ArrowPathData(advanced);
 Check(arrowData.Contains(" Z"),"Arrowhead exported as filled triangular outline");
 var advancedSvg=SvgExporter.Export(new SignDocument { Elements=[advanced] });
-Check(advancedSvg.Contains("stroke=\\\"none\\\""),"SVG exporter adds separate filled arrowhead path");
+Check(advancedSvg.Contains("stroke=\"none\""),"SVG exporter adds separate filled arrowhead path");
 var advancedCopy=SignFile.Deserialize(SignFile.Serialize(new SignDocument { Elements=[advanced] }));
 Check(advancedCopy.Elements[0].Junction!.Arms[0].Bends.Count==2 && advancedCopy.Elements[0].Junction!.Arms[0].ShowArrow,"Advanced arm state survives roundtrip");
 var advancedEditor=new SignEditorSession(advancedCopy);
