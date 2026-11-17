@@ -39,6 +39,8 @@ public static class SignValidator
                 result.Add(new("GEOMETRY", $"Shape {e.Id} has invalid dimensions.", true));
             if (e.Kind==ElementKind.Text && e.TextColor is not null && !System.Text.RegularExpressions.Regex.IsMatch(e.TextColor, "^#[0-9a-fA-F]{6}$"))
                 result.Add(new("COLOR", $"Element {e.Id} has an invalid text colour.", true));
+            if(e.Kind==ElementKind.Symbol && !SignSymbolLibrary.Valid(e))
+                result.Add(new("SYMBOL",$"Element {e.Id} has invalid symbol properties.",true));
             if (e.Kind==ElementKind.Junction)
                 foreach(var error in JunctionGeometry.Validate(e))
                     result.Add(new("JUNCTION", $"Element {e.Id}: {error}", true));
@@ -85,6 +87,9 @@ public static class SvgExporter
                     break;
                 case ElementKind.CubicBezier:
                     b.AppendLine($"<path d=\"M {F(e.X)} {F(e.Y)} C {F(e.Control1X)} {F(e.Control1Y)}, {F(e.Control2X)} {F(e.Control2Y)}, {F(e.X2)} {F(e.Y2)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\"/>");
+                    break;
+                case ElementKind.Symbol:
+                    b.AppendLine($"<path d=\"{SignSymbolLibrary.PathData(e)}\" transform=\"{SignSymbolLibrary.Transform(e)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"4\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>");
                     break;
                 case ElementKind.Junction:
                     b.AppendLine($"<path d=\"{JunctionGeometry.PathData(e)}\" fill=\"none\" stroke=\"{E(e.Stroke)}\" stroke-width=\"{F(e.StrokeWidthMm)}\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>");
