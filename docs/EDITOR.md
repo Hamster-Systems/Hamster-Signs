@@ -12,6 +12,20 @@ Core smoke checks:
 dotnet run --project tests/HamsterSigns.Core.Tests
 ```
 
+## v0.4 parametric junction constructor
+
+- **Roundabout (4 arms)** creates a circular route diagram and four connected radial road arms
+- **T-junction** and **Crossroads** create editable connected-arm intersection diagrams
+- Select a junction, then drag any orange arm endpoint to change its angle and length
+- Drag the road stroke to move the whole junction as one object
+- Add junction arm / Remove last arm operate on the selected junction (1–16 arms)
+- Increase / decrease roundabout radius changes the selected roundabout in 25 mm increments
+- The roundabout ring and all arms use one stroke width and share the same centre/radius geometry
+- The native JSON file retains the structured junction model; SVG export uses the same core geometry
+- Each arm edit and radius adjustment is undoable
+
+These are **diagram-construction tools only**, not a TSRGD-compliant layout generator. Arm curvature, traffic arrows, grouped segment networks and official sign spacing still need implementation.
+
 ## v0.3 curved-junction editing
 - Add curved road creates a cubic Bézier road stroke
 - Click a road curve to select and drag the entire stroke
