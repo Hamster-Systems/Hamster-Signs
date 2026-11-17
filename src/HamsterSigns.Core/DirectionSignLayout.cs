@@ -13,6 +13,10 @@ public sealed class DirectionDestination
     public RoutePanel RouteStyle { get; set; } = RoutePanel.None;
     // Populated by map-type templates. Links the legend to an editable road arm.
     public Guid? LinkedMapArmId { get; set; }
+    // Map label components share a logical group without merging their CAD elements.
+    public Guid? MapPlaceElementId { get; set; }
+    public Guid? MapRouteElementId { get; set; }
+    public Guid? MapPatchElementId { get; set; }
 }
 
 public sealed class DirectionSignSpecification
